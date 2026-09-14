@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -219,27 +220,28 @@ class PdfService {
 
   static pw.TableRow _buildColumnHeaderRow() {
     final cells = <pw.Widget>[
-      _cell('Seq', bold: true, fontSize: 5),
-      _cell('INÍCIO\nDA ATIV', bold: true, fontSize: 4.5),
-      _cell('TÉRMINO\nDA ATIV', bold: true, fontSize: 4.5),
-      _cell('PN DA PEÇA', bold: true, fontSize: 5),
-      _cell('Taxa\nPlanejada', bold: true, fontSize: 4.5),
-      _cell('Taxa\nReal', bold: true, fontSize: 4.5),
-      _cell('QUANTIDADE\nPEÇAS', bold: true, fontSize: 4.5),
+      _cell('Seq', bold: true, fontSize: 5, bg: _headerBg),
+      _cell('INÍCIO\nDA ATIV', bold: true, fontSize: 4.5, bg: _headerBg),
+      _cell('TÉRMINO\nDA ATIV', bold: true, fontSize: 4.5, bg: _headerBg),
+      _cell('PN DA PEÇA', bold: true, fontSize: 5, bg: _headerBg),
+      _cell('Taxa\nPlanejada', bold: true, fontSize: 4.5, bg: _headerBg),
+      _cell('Taxa\nReal', bold: true, fontSize: 4.5, bg: _headerBg),
+      _cell('QUANTIDADE\nPEÇAS', bold: true, fontSize: 4.5, bg: _headerBg),
     ];
+    // TM / TP / PP / Scrap — texto vertical como no formulário oficial
     for (final label in TempoMortoCategories.short) {
-      cells.add(_cell(label, bold: true, fontSize: 3.8));
+      cells.add(_vCell(label));
     }
     for (final label in TempoPerdidoCategories.short) {
-      cells.add(_cell(label, bold: true, fontSize: 3.8));
+      cells.add(_vCell(label));
     }
     for (final label in ParadasProgramadasCategories.short) {
-      cells.add(_cell(label, bold: true, fontSize: 3.8));
+      cells.add(_vCell(label));
     }
     for (final label in ScrapRdpColumns.short) {
-      cells.add(_cell(label, bold: true, fontSize: 3.8));
+      cells.add(_vCell(label));
     }
-    cells.add(_cell('', bold: true, fontSize: 5));
+    cells.add(_cell('VISTO', bold: true, fontSize: 5, bg: _headerBg));
     return pw.TableRow(decoration: pw.BoxDecoration(color: _headerBg), children: cells);
   }
 
@@ -396,6 +398,27 @@ class PdfService {
         ),
         textAlign: pw.TextAlign.center,
         maxLines: 3,
+      ),
+    );
+  }
+
+  /// Célula com texto vertical (como no formulário oficial)
+  static pw.Widget _vCell(String text, {double height = 72, PdfColor? bg}) {
+    return pw.Container(
+      color: bg ?? _headerBg,
+      height: height,
+      alignment: pw.Alignment.center,
+      child: pw.Transform.rotateBox(
+        angle: math.pi / 2,
+        child: pw.Container(
+          width: height - 4,
+          child: pw.Text(
+            text,
+            style: pw.TextStyle(fontSize: 4.5, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.center,
+            maxLines: 3,
+          ),
+        ),
       ),
     );
   }
