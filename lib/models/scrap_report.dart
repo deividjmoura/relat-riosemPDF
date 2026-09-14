@@ -17,6 +17,9 @@ class ScrapItem {
 
   String get pesoKgFormatado => (pesoGramas / 1000).toStringAsFixed(2);
 
+  /// Compatibilidade com a geração de PDF existente: "TOTAL" representa kg.
+  String get total => pesoGramas > 0 ? pesoKgFormatado.replaceAll('.', ',') : '';
+
   Map<String, dynamic> toMap() => {
         'id': id,
         'terminal': terminal,
