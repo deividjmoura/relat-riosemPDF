@@ -1,87 +1,153 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../models/rdp_report.dart';
 import '../../models/timer_entry.dart';
-import '../../utils/constants.dart';
+import '../../services/timer_service.dart';
 import '../../widgets/stop_reason_dialog.dart';
 
 class RdpTimersScreen extends StatefulWidget {
-  final Function(Map<String, int>) onTimersFinished;
+  final List<RdpLine> setups;
 
-  const RdpTimersScreen({super.key, required this.onTimersFinished});
+  /// Chamado quando o usuário aplica minutos pendentes a um setup
+  final void Function(String setupId, String reason, int minutes) onApplyMinutes;
+
+  const RdpTimersScreen({
+    super.key,
+    required this.setups,
+    required this.onApplyMinutes,
+  });
 
   @override
   State<RdpTimersScreen> createState() => _RdpTimersScreenState();
 }
 
 class _RdpTimersScreenState extends State<RdpTimersScreen> {
-  final List<TimerEntry> _activeTimers = [];
-  final Map<String, int> _accumulated = {}; // categoria → minutos
-  Timer? _uiTimer;
+  final _service = TimerService.instance;
 
   @override
   void initState() {
     super.initState();
-    // Atualiza a UI a cada segundo
-    _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    _service.addListener(_onTick);
   }
 
   @override
   void dispose() {
-    _uiTimer?.cancel();
+    _service.removeListener(_onTick);
     super.dispose();
   }
 
-  void _startNewTimer() async {
+  void _onTick() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _startNewTimer() async {
+    if (widget.setups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Adicione pelo menos um setup antes')),
+      );
+      return;
+    }
+
+    // 1) Escolher setup
+    final setup = await showDialog<RdpLine>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Para qual setup?'),
+        children: widget.setups
+            .map((s) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, s),
+                  child: Text(
+                    'PN: ${s.pnPeca.isEmpty ? "(sem PN)" : s.pnPeca}'
+                    '${s.inicioAtiv.isNotEmpty ? "  ·  ${s.inicioAtiv}" : ""}',
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+    if (setup == null) return;
+
+    // 2) Escolher motivo
     final reason = await showDialog<String>(
       context: context,
       builder: (_) => const StopReasonDialog(),
     );
+    if (reason == null) return;
 
-    if (reason != null) {
-      setState(() {
-        _activeTimers.add(TimerEntry(reason: reason, startTime: DateTime.now()));
-      });
-    }
+    _service.start(
+      reason: reason,
+      setupId: setup.id,
+      setupPn: setup.pnPeca,
+    );
   }
 
-  void _stopTimer(TimerEntry timer) {
-    setState(() {
-      timer.endTime = DateTime.now();
-      timer.isRunning = false;
-      final minutos = timer.elapsedMinutes;
-      _accumulated[timer.reason] = (_accumulated[timer.reason] ?? 0) + minutos;
-      _activeTimers.remove(timer);
-    });
+  Future<void> _stopTimer(TimerEntry timer) async {
+    _service.stop(timer.id);
+    // Aplica automaticamente se já tinha setup vinculado
+    await _flushPending();
   }
 
-  void _finishAll() {
-    // Para todos que ainda estão rodando
-    for (var t in List.from(_activeTimers)) {
-      _stopTimer(t);
+  Future<void> _flushPending() async {
+    final pending = List.of(_service.pending);
+    for (final p in pending) {
+      String? setupId = p.setupId;
+
+      // Se não tem setup, pergunta
+      if (setupId == null || setupId.isEmpty) {
+        final setup = await showDialog<RdpLine>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: Text('Aplicar ${p.minutes} min de "${p.reason}" em qual setup?'),
+            children: widget.setups
+                .map((s) => SimpleDialogOption(
+                      onPressed: () => Navigator.pop(ctx, s),
+                      child: Text('PN: ${s.pnPeca.isEmpty ? "(sem PN)" : s.pnPeca}'),
+                    ))
+                .toList(),
+          ),
+        );
+        if (setup == null) continue;
+        setupId = setup.id;
+      }
+
+      widget.onApplyMinutes(setupId, p.reason, p.minutes);
+      _service.consumePending(p);
     }
-    widget.onTimersFinished(_accumulated);
-    Navigator.pop(context);
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final active = _service.activeTimers;
+    final pending = _service.pending;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cronômetros'),
         backgroundColor: Colors.orange.shade800,
         foregroundColor: Colors.white,
         actions: [
-          TextButton(
-            onPressed: _accumulated.isEmpty && _activeTimers.isEmpty ? null : _finishAll,
-            child: const Text('Finalizar', style: TextStyle(color: Colors.white)),
-          ),
+          if (pending.isNotEmpty)
+            TextButton(
+              onPressed: _flushPending,
+              child: Text(
+                'Aplicar (${pending.length})',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
         ],
       ),
       body: Column(
         children: [
-          // Botão novo timer
+          // Aviso de persistência
+          Container(
+            width: double.infinity,
+            color: Colors.orange.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: const Text(
+              'Os cronômetros continuam rodando mesmo se você sair desta tela.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+
           Padding(
             padding: const EdgeInsets.all(16),
             child: ElevatedButton.icon(
@@ -96,24 +162,23 @@ class _RdpTimersScreenState extends State<RdpTimersScreen> {
             ),
           ),
 
-          // Lista de timers ativos
           Expanded(
-            child: _activeTimers.isEmpty
+            child: active.isEmpty
                 ? const Center(child: Text('Nenhum cronômetro ativo'))
                 : ListView.builder(
-                    itemCount: _activeTimers.length,
+                    itemCount: active.length,
                     itemBuilder: (context, index) {
-                      final t = _activeTimers[index];
-                      final elapsed = DateTime.now().difference(t.startTime);
-                      final min = elapsed.inMinutes.toString().padLeft(2, '0');
-                      final sec = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
-
+                      final t = active[index];
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: ListTile(
                           leading: const Icon(Icons.timer, color: Colors.orange, size: 32),
-                          title: Text(t.reason, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('$min:$sec'),
+                          title: Text(t.reason,
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            '${t.elapsedLabel}'
+                            '${t.setupPn != null && t.setupPn!.isNotEmpty ? "  ·  PN: ${t.setupPn}" : ""}',
+                          ),
                           trailing: IconButton(
                             icon: const Icon(Icons.stop_circle, color: Colors.red, size: 36),
                             onPressed: () => _stopTimer(t),
@@ -124,8 +189,7 @@ class _RdpTimersScreenState extends State<RdpTimersScreen> {
                   ),
           ),
 
-          // Resumo acumulado
-          if (_accumulated.isNotEmpty)
+          if (pending.isNotEmpty)
             Container(
               width: double.infinity,
               color: Colors.grey.shade100,
@@ -133,8 +197,12 @@ class _RdpTimersScreenState extends State<RdpTimersScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Acumulado até agora:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ..._accumulated.entries.map((e) => Text('${e.key}: ${e.value} min')),
+                  const Text('Pendentes de aplicar:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...pending.map((e) => Text(
+                        '${e.reason}: ${e.minutes} min'
+                        '${e.setupPn != null ? " → PN ${e.setupPn}" : ""}',
+                      )),
                 ],
               ),
             ),

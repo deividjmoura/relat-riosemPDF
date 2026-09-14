@@ -2,19 +2,36 @@ import 'package:flutter/material.dart';
 import '../../models/rdp_report.dart';
 
 class RdpSetupDialog extends StatefulWidget {
-  const RdpSetupDialog({super.key});
+  /// Se informado, abre em modo edição
+  final RdpLine? existing;
+
+  const RdpSetupDialog({super.key, this.existing});
 
   @override
   State<RdpSetupDialog> createState() => _RdpSetupDialogState();
 }
 
 class _RdpSetupDialogState extends State<RdpSetupDialog> {
-  final _pnCtrl = TextEditingController();
-  final _inicioCtrl = TextEditingController();
-  final _terminoCtrl = TextEditingController();
-  final _taxaPlanCtrl = TextEditingController();
-  final _taxaRealCtrl = TextEditingController();
-  final _qtdCtrl = TextEditingController();
+  late final TextEditingController _pnCtrl;
+  late final TextEditingController _inicioCtrl;
+  late final TextEditingController _terminoCtrl;
+  late final TextEditingController _taxaPlanCtrl;
+  late final TextEditingController _taxaRealCtrl;
+  late final TextEditingController _qtdCtrl;
+
+  bool get isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _pnCtrl = TextEditingController(text: e?.pnPeca ?? '');
+    _inicioCtrl = TextEditingController(text: e?.inicioAtiv ?? '');
+    _terminoCtrl = TextEditingController(text: e?.terminoAtiv ?? '');
+    _taxaPlanCtrl = TextEditingController(text: e?.taxaPlanejada ?? '');
+    _taxaRealCtrl = TextEditingController(text: e?.taxaReal ?? '');
+    _qtdCtrl = TextEditingController(text: e?.quantidadePecas ?? '');
+  }
 
   @override
   void dispose() {
@@ -28,29 +45,39 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
   }
 
   void _salvar() {
-    if (_pnCtrl.text.isEmpty) {
+    if (_pnCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('PN da peça é obrigatório')),
       );
       return;
     }
 
-    final linha = RdpLine(
-      pnPeca: _pnCtrl.text.trim(),
-      inicioAtiv: _inicioCtrl.text.trim(),
-      terminoAtiv: _terminoCtrl.text.trim(),
-      taxaPlanejada: _taxaPlanCtrl.text.trim(),
-      taxaReal: _taxaRealCtrl.text.trim(),
-      quantidadePecas: _qtdCtrl.text.trim(),
-    );
-
-    Navigator.pop(context, linha);
+    if (isEditing) {
+      final e = widget.existing!;
+      e.pnPeca = _pnCtrl.text.trim();
+      e.inicioAtiv = _inicioCtrl.text.trim();
+      e.terminoAtiv = _terminoCtrl.text.trim();
+      e.taxaPlanejada = _taxaPlanCtrl.text.trim();
+      e.taxaReal = _taxaRealCtrl.text.trim();
+      e.quantidadePecas = _qtdCtrl.text.trim();
+      Navigator.pop(context, e);
+    } else {
+      final linha = RdpLine(
+        pnPeca: _pnCtrl.text.trim(),
+        inicioAtiv: _inicioCtrl.text.trim(),
+        terminoAtiv: _terminoCtrl.text.trim(),
+        taxaPlanejada: _taxaPlanCtrl.text.trim(),
+        taxaReal: _taxaRealCtrl.text.trim(),
+        quantidadePecas: _qtdCtrl.text.trim(),
+      );
+      Navigator.pop(context, linha);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Adicionar Setup'),
+      title: Text(isEditing ? 'Editar Setup' : 'Adicionar Setup'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -58,16 +85,22 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
             TextField(
               controller: _pnCtrl,
               decoration: const InputDecoration(labelText: 'PN da Peça *'),
-              autofocus: true,
+              autofocus: !isEditing,
             ),
             TextField(
               controller: _inicioCtrl,
-              decoration: const InputDecoration(labelText: 'Início da Atividade (HH:MM)'),
+              decoration: const InputDecoration(
+                labelText: 'Início da Atividade (HH:MM)',
+                hintText: 'Ex: 08:15',
+              ),
               keyboardType: TextInputType.datetime,
             ),
             TextField(
               controller: _terminoCtrl,
-              decoration: const InputDecoration(labelText: 'Término da Atividade (HH:MM)'),
+              decoration: const InputDecoration(
+                labelText: 'Término da Atividade (HH:MM)',
+                hintText: 'Pode preencher depois',
+              ),
               keyboardType: TextInputType.datetime,
             ),
             TextField(
@@ -95,7 +128,7 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
         ),
         ElevatedButton(
           onPressed: _salvar,
-          child: const Text('Adicionar'),
+          child: Text(isEditing ? 'Salvar' : 'Adicionar'),
         ),
       ],
     );
