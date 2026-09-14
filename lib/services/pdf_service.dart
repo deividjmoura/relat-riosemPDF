@@ -206,11 +206,11 @@ class PdfService {
       children: [
         for (var i = 0; i < 7; i++) _cell('', bold: true, fontSize: 5),
         for (var i = 0; i < tmCount; i++)
-          _cell(i == 0 ? 'Tempo Morto (TM)' : '', bold: true, fontSize: 5.5, bg: _headerBg),
+          _cell(i == 0 ? 'TM' : '', bold: true, fontSize: 6, bg: _headerBg),
         for (var i = 0; i < tpCount; i++)
-          _cell(i == 0 ? 'Tempo Perdido (TP)' : '', bold: true, fontSize: 5.5, bg: _headerBg),
+          _cell(i == 0 ? 'TP' : '', bold: true, fontSize: 6, bg: _headerBg),
         for (var i = 0; i < ppCount; i++)
-          _cell(i == 0 ? 'Paradas Programadas (PP)' : '', bold: true, fontSize: 5.5, bg: _headerBg),
+          _cell(i == 0 ? 'PP' : '', bold: true, fontSize: 6, bg: _headerBg),
         for (var i = 0; i < scrapCount; i++)
           _cell(i == 0 ? 'Scrap' : '', bold: true, fontSize: 5.5, bg: _headerBg),
         _cell('VISTO', bold: true, fontSize: 5.5, bg: _headerBg),
@@ -403,20 +403,21 @@ class PdfService {
   }
 
   /// Célula com texto vertical (como no formulário oficial)
-  static pw.Widget _vCell(String text, {double height = 72, PdfColor? bg}) {
+  static pw.Widget _vCell(String text, {double height = 55, PdfColor? bg}) {
     return pw.Container(
       color: bg ?? _headerBg,
       height: height,
       alignment: pw.Alignment.center,
       child: pw.Transform.rotateBox(
-        angle: math.pi / 2,
+        angle: -math.pi / 2,
         child: pw.Container(
-          width: height - 4,
+          width: height - 2,
+          alignment: pw.Alignment.center,
           child: pw.Text(
             text,
-            style: pw.TextStyle(fontSize: 4.5, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 4.2, fontWeight: pw.FontWeight.bold),
             textAlign: pw.TextAlign.center,
-            maxLines: 3,
+            maxLines: 4,
           ),
         ),
       ),
