@@ -28,6 +28,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   final _turnoCtrl = TextEditingController();
   final _database = DatabaseService.instance;
   bool _loadingDraft = true;
+  bool _gerandoPdf = false;
 
   @override
   void initState() {
@@ -316,21 +317,30 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   }
 
   Future<void> _gerarPdf() async {
+    if (_gerandoPdf) return;
+    setState(() => _gerandoPdf = true);
     try {
       _syncHeader();
       await _saveDraft();
-      await PdfService.generateScrapPdf(report);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      final saved = await PdfService.generateScrapPdf(report);
+
+      // saved=false = usuário cancelou a impressão -> sem notificação.
+      if (saved && mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
           SnackBar(
-            content: const Text('PDF do scrap gerado e salvo no histórico.'),
-            duration: const Duration(seconds: 4),
+            content: const Text('PDF salvo no histórico.'),
+            duration: const Duration(seconds: 3),
             action: SnackBarAction(
-              label: 'HISTÓRICO',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryScreen()),
-              ),
+              label: 'VER',
+              onPressed: () {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                );
+              },
             ),
           ),
         );
@@ -345,6 +355,8 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _gerandoPdf = false);
     }
   }
 

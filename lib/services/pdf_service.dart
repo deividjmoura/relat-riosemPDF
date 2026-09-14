@@ -67,14 +67,13 @@ class PdfService {
   static const double _hFootBand = 14; // x4 = 56
   static const double _gap = 3;
 
-  /// Salva o PDF no aparelho e registra no historico. Nunca quebra a geracao.
-  static Future<Uint8List> _recordPdf({
-    required pw.Document pdf,
+  /// Salva o PDF no aparelho e registra no historico. Retorna false se falhar.
+  static Future<bool> _storePdf({
+    required Uint8List bytes,
     required String tipo,
     required String titulo,
     required String fileName,
   }) async {
-    final bytes = await pdf.save();
     try {
       final dir = await getApplicationDocumentsDirectory();
       final pdfDir = Directory(dir.path + '/pdfs');
@@ -87,13 +86,14 @@ class PdfService {
         filename: fileName + '.pdf',
         path: file.path,
       );
+      return true;
     } catch (e) {
       debugPrint('HISTORICO: falha ao salvar PDF');
+      return false;
     }
-    return bytes;
   }
 
-  static Future<void> generateRdpPdf(RdpReport report) async {
+  static Future<bool> generateRdpPdf(RdpReport report) async {
     final pdf = pw.Document();
     report.calcularTotais();
     final dataFmt = _fmtData(report.data);
@@ -127,16 +127,20 @@ class PdfService {
 
     final fileName = _safeFileName(
         'RDP_${report.maquina}_${dataFmt.replaceAll('/', '-')}');
-    final bytes = await _recordPdf(
-      pdf: pdf,
+    final bytes = await pdf.save();
+
+    // layoutPdf retorna true se imprimiu/salvou, false se o usuario cancelou.
+    final done = await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: fileName,
+    );
+    if (!done) return false;
+
+    return _storePdf(
+      bytes: bytes,
       tipo: 'RDP',
       titulo: 'RDP MAQ ' + report.maquina + ' - ' + dataFmt,
       fileName: fileName,
-    );
-
-    await Printing.layoutPdf(
-      onLayout: (format) async => bytes,
-      name: fileName,
     );
   }
 
@@ -862,7 +866,7 @@ class PdfService {
   // ===========================================================================
   // SCRAP — F QUA-E 102 Rev.04
   // ===========================================================================
-  static Future<void> generateScrapPdf(ScrapReport report) async {
+  static Future<bool> generateScrapPdf(ScrapReport report) async {
     final pdf = pw.Document();
 
     pdf.addPage(
@@ -918,16 +922,20 @@ class PdfService {
 
     final fileName = _safeFileName(
         'Scrap_${report.maquina}_${report.data.replaceAll('/', '-')}');
-    final bytes = await _recordPdf(
-      pdf: pdf,
+    final bytes = await pdf.save();
+
+    // layoutPdf retorna true se imprimiu/salvou, false se o usuario cancelou.
+    final done = await Printing.layoutPdf(
+      onLayout: (format) async => bytes,
+      name: fileName,
+    );
+    if (!done) return false;
+
+    return _storePdf(
+      bytes: bytes,
       tipo: 'Scrap',
       titulo: 'Scrap MAQ ' + report.maquina + ' - ' + report.data,
       fileName: fileName,
-    );
-
-    await Printing.layoutPdf(
-      onLayout: (format) async => bytes,
-      name: fileName,
     );
   }
 
