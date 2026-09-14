@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
 import '../services/database_service.dart';
+import '../widgets/app_drawer.dart';
 
 /// Histórico de PDFs gerados: permite rever, reenviar e excluir documentos.
 class HistoryScreen extends StatefulWidget {
@@ -114,6 +115,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(current: 'history'),
       appBar: AppBar(
         title: const Text('Histórico de PDFs'),
         backgroundColor: const Color(0xFFE30613),

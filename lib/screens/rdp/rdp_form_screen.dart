@@ -6,7 +6,7 @@ import '../../services/timer_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/input_helpers.dart';
 import 'rdp_setup_dialog.dart';
-import '../../widgets/section_header.dart';
+import '../../widgets/app_drawer.dart';
 import '../history_screen.dart';
 import 'rdp_timers_screen.dart';
 
@@ -108,7 +108,16 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
 
   Future<void> _headerChanged(String _) async {
     _syncHeader();
+    if (mounted) setState(() {});
     await _saveDraft();
+  }
+
+  String _headerSummary() {
+    final parts = <String>[];
+    if (report.maquina.isNotEmpty) parts.add('MAQ ${report.maquina}');
+    if (report.turno.isNotEmpty) parts.add('Turno ${report.turno}');
+    if (report.data.isNotEmpty) parts.add(report.data);
+    return parts.isEmpty ? 'Toque para preencher' : parts.join(' \u2022 ');
   }
 
   Future<void> _addSetup() async {
@@ -229,6 +238,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
     final running = _timerService.runningCount;
 
     return Scaffold(
+      drawer: const AppDrawer(current: 'rdp'),
       appBar: AppBar(
         title: const Text('RDP - Produção'),
         backgroundColor: const Color(0xFFE30613),
@@ -262,12 +272,18 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const SectionHeader(icon: Icons.badge, title: 'Cabeçalho do turno'),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              leading: const Icon(Icons.badge),
+              title: const Text('Cabeçalho do turno',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_headerSummary()),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    children: [
                   TextField(
                     controller: _dataCtrl,
                     readOnly: true,
@@ -362,25 +378,35 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseTextFormatter()],
                   ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
-          SectionHeader(icon: Icons.list_alt, title: 'Setups (${report.linhas.length})'),
-          const Text('Toque em um setup para editar (hora de término, qtd, etc.)', style: TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 8),
-          ...report.linhas.map((linha) {
+          Card(
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              leading: const Icon(Icons.list_alt),
+              title: Text('Setups (${report.linhas.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Toque em um setup para editar',
+                  style: TextStyle(fontSize: 12)),
+              children: [
+                ...report.linhas.map((linha) {
             final tmTotal = linha.tempoMorto.values.fold(0, (a, b) => a + b);
             final tpTotal = linha.tempoPerdido.values.fold(0, (a, b) => a + b);
             final ppTotal = linha.paradasProgramadas.values.fold(0, (a, b) => a + b);
-            return Card(
-              child: ListTile(
-                onTap: () => _editSetup(linha),
-                title: Text('PN: ${linha.pnPeca}'),
-                subtitle: Text('Qtd: ${linha.quantidadePecas.isEmpty ? "–" : linha.quantidadePecas}  |  ${linha.inicioAtiv.isEmpty ? "??:??" : linha.inicioAtiv} → ${linha.terminoAtiv.isEmpty ? "??:??" : linha.terminoAtiv}\nTM: ${tmTotal}min  TP: ${tpTotal}min  PP: ${ppTotal}min'),
-                isThreeLine: true,
-                trailing: Row(
+            return ListTile(
+              dense: true,
+              onTap: () => _editSetup(linha),
+              title: Text('PN: ${linha.pnPeca}',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                  'Qtd: ${linha.quantidadePecas.isEmpty ? "–" : linha.quantidadePecas} \u2022 ${linha.inicioAtiv.isEmpty ? "??:??" : linha.inicioAtiv}→${linha.terminoAtiv.isEmpty ? "??:??" : linha.terminoAtiv} \u2022 TM:${tmTotal} TP:${tpTotal} PP:${ppTotal}',
+                  style: const TextStyle(fontSize: 12)),
+              trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _editSetup(linha)),
@@ -393,9 +419,17 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                     ),
                   ],
                 ),
-              ),
             );
           }),
+                if (report.linhas.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Text('Nenhum setup. Toque em Adicionar Setup abaixo.',
+                        style: TextStyle(color: Colors.grey)),
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _addSetup,

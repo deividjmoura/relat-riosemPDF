@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import 'history_screen.dart';
+import '../widgets/app_drawer.dart';
 import 'rdp/rdp_form_screen.dart';
 import 'scrap/scrap_form_screen.dart';
 
@@ -10,10 +11,21 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(current: 'home'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
+            Builder(
+              builder: (ctx) => Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Menu',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+            ),
             // Cabeçalho com identidade Lear
             Container(
               padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),

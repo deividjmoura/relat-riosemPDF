@@ -6,7 +6,7 @@ import '../../services/pdf_service.dart';
 import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
 import '../history_screen.dart';
-import '../../widgets/section_header.dart';
+import '../../widgets/app_drawer.dart';
 
 class ScrapFormScreen extends StatefulWidget {
   const ScrapFormScreen({super.key});
@@ -92,7 +92,16 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
 
   Future<void> _headerChanged(String _) async {
     _syncHeader();
+    if (mounted) setState(() {});
     await _saveDraft();
+  }
+
+  String _headerSummary() {
+    final parts = <String>[];
+    if (report.maquina.isNotEmpty) parts.add('MAQ ${report.maquina}');
+    if (report.turno.isNotEmpty) parts.add('Turno ${report.turno}');
+    if (report.data.isNotEmpty) parts.add(report.data);
+    return parts.isEmpty ? 'Toque para preencher' : parts.join(' \u2022 ');
   }
 
   Future<void> _scanBarcode(List<ScrapItem> targetList) async {
@@ -363,83 +372,79 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
 
   Widget _buildSection(String title, List<ScrapItem> items) {
     final totalGramas = items.fold<int>(0, (sum, item) => sum + item.pesoGramas);
+    final totalKg = (totalGramas / 1000).toStringAsFixed(3);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Row(
+            Expanded(
+              child: Text('$title (${items.length})',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: () => _scanBarcode(items),
+              tooltip: 'Ler código de barras',
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _addManual(items),
+              tooltip: 'Adicionar manual',
+            ),
+          ],
+        ),
+        subtitle: Text('Total: $totalGramas g ($totalKg kg)'),
+        children: [
+          if (items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Nenhum item',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+            )
+          else
+            ...items.map((item) {
+              final motivoLabel = item.motivo.isEmpty
+                  ? '\u2013'
+                  : '${item.motivo} ${MotivosScrap.lista[item.motivo] ?? ''}';
+              return ListTile(
+                dense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16),
+                title: Text(item.terminal,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  'Qtd: ${item.quantidade.isEmpty ? "\u2013" : item.quantidade}  |  '
+                  'Peso: ${item.pesoGramas} g (${item.pesoKgFormatado} kg)\n'
+                  'Motivo: $motivoLabel',
+                ),
+                isThreeLine: true,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: () => _scanBarcode(items),
-                      tooltip: 'Ler código de barras',
+                      icon: const Icon(Icons.edit, size: 20),
+                      onPressed: () => _editItem(item),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: () => _addManual(items),
-                      tooltip: 'Adicionar manual',
+                      icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                      onPressed: () async {
+                        setState(() => items.remove(item));
+                        await _saveDraft();
+                      },
                     ),
                   ],
                 ),
-              ],
-            ),
-            if (items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('Nenhum item', style: TextStyle(color: Colors.grey)),
-              )
-            else
-              ...items.map((item) {
-                final motivoLabel = item.motivo.isEmpty
-                    ? '–'
-                    : '${item.motivo} ${MotivosScrap.lista[item.motivo] ?? ''}';
-                return ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.terminal, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    'Qtd: ${item.quantidade.isEmpty ? "–" : item.quantidade}  |  '
-                    'Peso: ${item.pesoGramas} g (${item.pesoKgFormatado} kg)\n'
-                    'Motivo: $motivoLabel',
-                  ),
-                  isThreeLine: true,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
-                        onPressed: () => _editItem(item),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                        onPressed: () async {
-                          setState(() => items.remove(item));
-                          await _saveDraft();
-                        },
-                      ),
-                    ],
-                  ),
-                  onTap: () => _editItem(item),
-                );
-              }),
-            if (items.isNotEmpty)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'TOTAL DO $title: $totalGramas g (${(totalGramas / 1000).toStringAsFixed(3)} kg)',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-          ],
-        ),
+                onTap: () => _editItem(item),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -447,6 +452,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(current: 'scrap'),
       appBar: AppBar(
         title: const Text('Registro de Scrap'),
         backgroundColor: Colors.orange.shade800,
@@ -462,12 +468,18 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const SectionHeader(icon: Icons.badge, title: 'Cabeçalho do turno'),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
+            child: ExpansionTile(
+              initiallyExpanded: true,
+              leading: const Icon(Icons.badge),
+              title: const Text('Cabeçalho do turno',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_headerSummary()),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    children: [
                   TextField(
                     controller: _dataCtrl,
                     readOnly: true,
@@ -524,12 +536,13 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                       ),
                     ],
                   ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
-          const SectionHeader(icon: Icons.inventory_2, title: 'Itens de scrap'),
           _buildSection('TERMINAL', report.terminais),
           _buildSection('SELO', report.selos),
           _buildSection('CABO', report.cabos),
