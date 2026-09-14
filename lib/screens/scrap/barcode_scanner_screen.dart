@@ -10,23 +10,8 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  late final MobileScannerController controller;
   bool _scanned = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Deixa o próprio MobileScanner controlar o ciclo de inicialização da câmera.
-    // Isso evita a condição de corrida que ocorria ao criar o controller com
-    // autoStart=false e chamar start() imediatamente após o primeiro frame.
-    controller = MobileScannerController();
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
+  int _scannerKey = 0;
 
   void _onDetect(BarcodeCapture capture) {
     if (_scanned) return;
@@ -35,6 +20,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       _scanned = true;
       Navigator.pop(context, code);
     }
+  }
+
+  void _retryCamera() {
+    setState(() {
+      _scanned = false;
+      _scannerKey++;
+    });
   }
 
   @override
@@ -50,29 +42,21 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         fit: StackFit.expand,
         children: [
           MobileScanner(
-            controller: controller,
+            key: ValueKey(_scannerKey),
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) {
+            errorBuilder: (context, error) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.camera_alt_outlined,
-                        color: Colors.white,
-                        size: 64,
-                      ),
+                      const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 64),
                       const SizedBox(height: 16),
                       const Text(
                         'Não foi possível abrir a câmera.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -82,14 +66,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton.icon(
-                        onPressed: () async {
-                          try {
-                            await controller.start();
-                          } catch (e, stackTrace) {
-                            debugPrint('Erro ao reiniciar câmera: $e');
-                            debugPrintStack(stackTrace: stackTrace);
-                          }
-                        },
+                        onPressed: _retryCamera,
                         icon: const Icon(Icons.refresh),
                         label: const Text('Tentar novamente'),
                       ),
@@ -111,18 +88,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               ),
             ),
           ),
-          Positioned(
+          const Positioned(
             bottom: 40,
             left: 0,
             right: 0,
-            child: const Text(
+            child: Text(
               'Aponte para o código de barras da etiqueta',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                shadows: [Shadow(blurRadius: 4)],
-              ),
+              style: TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 4)]),
             ),
           ),
         ],
