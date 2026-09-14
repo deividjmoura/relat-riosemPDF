@@ -1,21 +1,19 @@
-/// Categorias oficiais de Tempo Morto (TM) do formulário RDP
-/// Ordem e nomes alinhados com F QUA-E 054 Rev.04
+/// Categorias oficiais alinhadas com F QUA-E 054 Rev.04
 class TempoMortoCategories {
-  /// Nome curto para cabeçalho do PDF (vertical)
+  /// Rótulos curtos para cabeçalho vertical do PDF
   static const List<String> short = [
     'SET UP',
-    'Reabast.\nDe cabo',
-    'Reabast.\nTerminal',
-    'Reabast.\nFITA',
-    'Ajuste\nde Guia',
-    'Limp.\nconjunto\nde selo',
-    'Ajuste de\nMáquina',
-    'Ajuste altura\nde Terminal',
-    'Posicionamento\ndo Bloco',
-    'Troca\nAlimentação\nde Cabo',
+    'Reabast. De cabo',
+    'Reabast. Terminal',
+    'Reabast. FITA',
+    'Ajuste de Guia',
+    'Limp. conjunto de selo',
+    'Ajuste de Máquina',
+    'Ajuste altura de Terminal',
+    'Posicionamento do Bloco',
+    'Troca Alimentação de Cabo',
   ];
 
-  /// Nome completo (usado nos cronômetros e mapeamento)
   static const List<String> list = [
     'Setup',
     'Reabastecimento de cabo',
@@ -30,17 +28,16 @@ class TempoMortoCategories {
   ];
 }
 
-/// Categorias de Tempo Perdido (TP)
 class TempoPerdidoCategories {
   static const List<String> short = [
-    'Espera de\nManutenção',
-    'Manutenção\nde Máquina',
-    'Manutenção\nde M.A.',
-    'Manutenção de\nMini Aplicador',
-    'Falta de Energia\n/ Ar Comprimido',
-    'Espera\nde Cabo',
-    'Espera de\nTerminal',
-    'Espera\nde Selo',
+    'Espera de Manutenção',
+    'Manutenção de Máquina',
+    'Manutenção de M.A.',
+    'Manutenção de Mini Aplicador',
+    'Falta de Energia / Ar Comprimido',
+    'Espera de Cabo',
+    'Espera de Terminal',
+    'Espera de Selo',
   ];
 
   static const List<String> list = [
@@ -55,16 +52,15 @@ class TempoPerdidoCategories {
   ];
 }
 
-/// Paradas Programadas (PP)
 class ParadasProgramadasCategories {
   static const List<String> short = [
     'LIMPEZA',
     'INTERVALO',
-    'MANUTENÇÃO\nPREVENTIVA',
-    'REUNIÃO /\nTREINAMENTO',
-    'DISPOSITIVOS\nFERRAMENTAS\n/ MÁQUINAS',
+    'MANUTENÇÃO PREVENTIVA',
+    'REUNIÃO / TREINAMENTO',
+    'DISPOSITIVOS / FERRAMENTAS / MÁQUINAS',
     'QUALIDADE',
-    'FALTA DE\nPROGRAMAÇÃO',
+    'FALTA DE PROGRAMAÇÃO',
     'ILUMINAÇÃO',
   ];
 
@@ -80,14 +76,13 @@ class ParadasProgramadasCategories {
   ];
 }
 
-/// Colunas de Scrap no RDP (código da perda)
 class ScrapRdpColumns {
   static const List<String> short = [
     '1-Setup',
     '2-Manutenção',
-    '3-Final\nde Bobina',
+    '3-Final de Bobina',
     '4-CFA / COM',
-    'Total\nScrap',
+    'Total Scrap',
   ];
 
   static const List<String> list = [
@@ -99,52 +94,58 @@ class ScrapRdpColumns {
   ];
 }
 
-/// Mapeia o texto escolhido no diálogo do cronômetro para a categoria correta
 class TimerCategoryMapper {
   static String groupFor(String reason) {
-    if (TempoMortoCategories.list.any((c) => c.toLowerCase() == reason.toLowerCase() || reason.toLowerCase().contains(c.toLowerCase().split(' ').first))) {
-      // match mais preciso
-    }
     final r = reason.toLowerCase();
 
-    // Tempo Morto
-    for (final c in TempoMortoCategories.list) {
-      if (r == c.toLowerCase() || r.contains(c.toLowerCase().substring(0, (c.length > 8 ? 8 : c.length).clamp(0, c.length)))) {
-        return 'TM';
-      }
-    }
-    // Tempo Perdido
     for (final c in TempoPerdidoCategories.list) {
-      if (r == c.toLowerCase() || r.contains(c.toLowerCase().substring(0, (c.length > 8 ? 8 : c.length).clamp(0, c.length)))) {
-        return 'TP';
-      }
+      if (r == c.toLowerCase() || _fuzzy(r, c)) return 'TP';
     }
-    // Paradas Programadas
     for (final c in ParadasProgramadasCategories.list) {
-      if (r == c.toLowerCase() || r.contains(c.toLowerCase().substring(0, (c.length > 6 ? 6 : c.length).clamp(0, c.length)))) {
-        return 'PP';
-      }
+      if (r == c.toLowerCase() || _fuzzy(r, c)) return 'PP';
     }
-    // fallback heurístico (mantém comportamento anterior)
-    if (r.contains('manuten') || r.contains('espera') || r.contains('energia') || r.contains('falta de energia')) {
+    for (final c in TempoMortoCategories.list) {
+      if (r == c.toLowerCase() || _fuzzy(r, c)) return 'TM';
+    }
+
+    if (r.contains('manuten') ||
+        r.contains('espera') ||
+        r.contains('energia') ||
+        r.contains('falta de energia')) {
       return 'TP';
     }
-    if (r.contains('limpeza') || r.contains('intervalo') || r.contains('reuni') || r.contains('treinamento') || r.contains('qualidade') || r.contains('programa') || r.contains('ilumina')) {
+    if (r.contains('limpeza') ||
+        r.contains('intervalo') ||
+        r.contains('reuni') ||
+        r.contains('treinamento') ||
+        r.contains('qualidade') ||
+        r.contains('programa') ||
+        r.contains('ilumina')) {
       return 'PP';
     }
     return 'TM';
   }
 
-  /// Retorna a chave canônica (nome da lista) que deve ser usada no Map da linha
   static String canonicalKey(String reason) {
     final r = reason.toLowerCase();
-    for (final list in [TempoMortoCategories.list, TempoPerdidoCategories.list, ParadasProgramadasCategories.list]) {
+    for (final list in [
+      TempoMortoCategories.list,
+      TempoPerdidoCategories.list,
+      ParadasProgramadasCategories.list,
+    ]) {
       for (final c in list) {
         if (r == c.toLowerCase()) return c;
-        // match parcial generoso
-        if (r.contains(c.toLowerCase()) || c.toLowerCase().contains(r)) return c;
+        if (_fuzzy(r, c)) return c;
       }
     }
-    return reason; // mantém original se não achar
+    return reason;
+  }
+
+  static bool _fuzzy(String a, String b) {
+    final bb = b.toLowerCase();
+    if (a.contains(bb) || bb.contains(a)) return true;
+    final words = bb.split(RegExp(r'\s+')).where((w) => w.length > 3).toList();
+    if (words.isEmpty) return false;
+    return words.every((w) => a.contains(w));
   }
 }
