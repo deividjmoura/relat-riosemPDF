@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/scrap_report.dart';
+import '../../services/database_service.dart';
 import '../../services/pdf_service.dart';
 import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
@@ -24,11 +25,46 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   final _liderCtrl = TextEditingController();
   final _matriculaCtrl = TextEditingController();
   final _turnoCtrl = TextEditingController();
+  final _database = DatabaseService.instance;
+  bool _loadingDraft = true;
 
   @override
   void initState() {
     super.initState();
     _dataCtrl = TextEditingController(text: report.data);
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final saved = await _database.getScrapDraft();
+    if (!mounted) return;
+
+    if (saved != null) {
+      report.maquina = saved.maquina;
+      report.centro = saved.centro;
+      report.turno = saved.turno;
+      report.data = saved.data;
+      report.matricula = saved.matricula;
+      report.operador = saved.operador;
+      report.nomeLider = saved.nomeLider;
+      report.terminais = saved.terminais;
+      report.selos = saved.selos;
+      report.cabos = saved.cabos;
+
+      _dataCtrl.text = report.data;
+      _maquinaCtrl.text = report.maquina;
+      _operadorCtrl.text = report.operador;
+      _liderCtrl.text = report.nomeLider;
+      _matriculaCtrl.text = report.matricula;
+      _turnoCtrl.text = report.turno;
+    }
+
+    setState(() => _loadingDraft = false);
+  }
+
+  Future<void> _saveDraft() async {
+    if (_loadingDraft) return;
+    await _database.saveScrapDraft(report);
   }
 
   @override
@@ -42,6 +78,20 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     super.dispose();
   }
 
+  void _syncHeader() {
+    report.data = _dataCtrl.text.trim();
+    report.maquina = _maquinaCtrl.text.trim();
+    report.operador = _operadorCtrl.text.trim();
+    report.nomeLider = _liderCtrl.text.trim();
+    report.matricula = _matriculaCtrl.text.trim();
+    report.turno = _turnoCtrl.text.trim();
+  }
+
+  Future<void> _headerChanged(String _) async {
+    _syncHeader();
+    await _saveDraft();
+  }
+
   Future<void> _scanBarcode(List<ScrapItem> targetList) async {
     final code = await Navigator.push<String>(
       context,
@@ -51,7 +101,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     if (code != null && code.isNotEmpty) {
       final item = ScrapItem(terminal: code);
       setState(() => targetList.add(item));
-      // Abre edição logo após o scan para preencher qtd/motivo
+      await _saveDraft();
       await _editItem(item);
     }
   }
@@ -64,7 +114,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
         title: const Text('Adicionar item'),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(labelText: 'Código / Terminal'),
+          decoration: const InputDecoration(labelText: 'Código / Item'),
           autofocus: true,
           textCapitalization: TextCapitalization.characters,
           inputFormatters: [UpperCaseTextFormatter()],
@@ -77,6 +127,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                 final item = ScrapItem(terminal: ctrl.text.trim().toUpperCase());
                 setState(() => targetList.add(item));
                 Navigator.pop(context);
+                await _saveDraft();
                 await _editItem(item);
               } else {
                 Navigator.pop(context);
@@ -91,13 +142,16 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
 
   Future<void> _editItem(ScrapItem item) async {
     final qtdCtrl = TextEditingController(text: item.quantidade);
-    final totalCtrl = TextEditingController(text: item.total);
+    final pesoCtrl = TextEditingController(
+      text: item.pesoGramas > 0 ? '${item.pesoGramas}' : '',
+    );
     String selectedMotivo = item.motivo;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
+          final peso = int.tryParse(pesoCtrl.text) ?? 0;
           return AlertDialog(
             title: Text('Item: ${item.terminal}'),
             content: SingleChildScrollView(
@@ -108,11 +162,26 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                     controller: qtdCtrl,
                     decoration: const InputDecoration(labelText: 'Quantidade'),
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
+                  const SizedBox(height: 8),
                   TextField(
-                    controller: totalCtrl,
-                    decoration: const InputDecoration(labelText: 'Total'),
+                    controller: pesoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Peso do scrap (gramas)',
+                      hintText: 'Ex.: 300',
+                      suffixText: 'g',
+                    ),
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (_) => setLocal(() {}),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Equivale a ${(peso / 1000).toStringAsFixed(3)} kg',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   const Align(
@@ -158,24 +227,25 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     if (ok == true) {
       setState(() {
         item.quantidade = qtdCtrl.text.trim();
-        item.total = totalCtrl.text.trim();
+        item.pesoGramas = int.tryParse(pesoCtrl.text.trim()) ?? 0;
         item.motivo = selectedMotivo;
       });
+      await _saveDraft();
     }
+
+    qtdCtrl.dispose();
+    pesoCtrl.dispose();
   }
 
   Future<void> _gerarPdf() async {
-    report.data = _dataCtrl.text.trim();
-    report.maquina = _maquinaCtrl.text.trim();
-    report.operador = _operadorCtrl.text.trim();
-    report.nomeLider = _liderCtrl.text.trim();
-    report.matricula = _matriculaCtrl.text.trim();
-    report.turno = _turnoCtrl.text.trim();
-
+    _syncHeader();
+    await _saveDraft();
     await PdfService.generateScrapPdf(report);
   }
 
   Widget _buildSection(String title, List<ScrapItem> items) {
+    final totalGramas = items.fold<int>(0, (sum, item) => sum + item.pesoGramas);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -217,9 +287,11 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(item.terminal, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Qtd: ${item.quantidade.isEmpty ? "–" : item.quantidade}  |  '
-                      'Total: ${item.total.isEmpty ? "–" : item.total}\n'
-                      'Motivo: $motivoLabel'),
+                  subtitle: Text(
+                    'Qtd: ${item.quantidade.isEmpty ? "–" : item.quantidade}  |  '
+                    'Peso: ${item.pesoGramas} g (${item.pesoKgFormatado} kg)\n'
+                    'Motivo: $motivoLabel',
+                  ),
                   isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -230,13 +302,24 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                        onPressed: () => setState(() => items.remove(item)),
+                        onPressed: () async {
+                          setState(() => items.remove(item));
+                          await _saveDraft();
+                        },
                       ),
                     ],
                   ),
                   onTap: () => _editItem(item),
                 );
               }),
+            if (items.isNotEmpty)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'TOTAL DO $title: $totalGramas g (${(totalGramas / 1000).toStringAsFixed(3)} kg)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
           ],
         ),
       ),
@@ -269,31 +352,32 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                   TextField(
                     controller: _dataCtrl,
                     readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Data',
-                      suffixIcon: Icon(Icons.calendar_today),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Data', suffixIcon: Icon(Icons.calendar_today)),
                     onTap: () async {
                       final picked = await pickDate(context, initial: _dataCtrl.text);
                       if (picked != null) {
                         setState(() => _dataCtrl.text = picked);
+                        await _headerChanged(picked);
                       }
                     },
                   ),
                   TextField(
                     controller: _maquinaCtrl,
+                    onChanged: _headerChanged,
                     decoration: const InputDecoration(labelText: 'Máquina'),
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseTextFormatter()],
                   ),
                   TextField(
                     controller: _operadorCtrl,
+                    onChanged: _headerChanged,
                     decoration: const InputDecoration(labelText: 'Operador'),
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseTextFormatter()],
                   ),
                   TextField(
                     controller: _liderCtrl,
+                    onChanged: _headerChanged,
                     decoration: const InputDecoration(labelText: 'Nome do Líder'),
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseTextFormatter()],
@@ -303,6 +387,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                       Expanded(
                         child: TextField(
                           controller: _matriculaCtrl,
+                          onChanged: _headerChanged,
                           decoration: const InputDecoration(labelText: 'Matrícula'),
                           textCapitalization: TextCapitalization.characters,
                           inputFormatters: [UpperCaseTextFormatter()],
@@ -312,6 +397,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                       Expanded(
                         child: TextField(
                           controller: _turnoCtrl,
+                          onChanged: _headerChanged,
                           decoration: const InputDecoration(labelText: 'Turno'),
                           textCapitalization: TextCapitalization.characters,
                           inputFormatters: [UpperCaseTextFormatter()],

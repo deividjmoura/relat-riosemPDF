@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import '../utils/constants.dart';
 
 /// Representa uma linha de setup + produção do RDP
 class RdpLine {
@@ -55,6 +56,47 @@ class RdpLine {
       'scrap': scrap,
     };
   }
+
+  factory RdpLine.fromMap(Map<String, dynamic> map) {
+    Map<String, int> intMap(dynamic value, String Function(String) normalize) {
+      if (value is! Map) return {};
+      final result = <String, int>{};
+      value.forEach((key, val) {
+        final norm = normalize(key.toString());
+        final v = val is num ? val.toInt() : int.tryParse('$val') ?? 0;
+        result[norm] = (result[norm] ?? 0) + v;
+      });
+      return result;
+    }
+
+    return RdpLine(
+      id: map['id']?.toString(),
+      inicioAtiv: map['inicioAtiv']?.toString() ?? '',
+      terminoAtiv: map['terminoAtiv']?.toString() ?? '',
+      pnPeca: map['pnPeca']?.toString() ?? '',
+      taxaPlanejada: map['taxaPlanejada']?.toString() ?? '',
+      taxaReal: map['taxaReal']?.toString() ?? '',
+      quantidadePecas: map['quantidadePecas']?.toString() ?? '',
+      tempoMorto: intMap(map['tempoMorto'], RdpLabelAliases.normalizeMinuteKey),
+      tempoPerdido:
+          intMap(map['tempoPerdido'], RdpLabelAliases.normalizeMinuteKey),
+      paradasProgramadas:
+          intMap(map['paradasProgramadas'], RdpLabelAliases.normalizeMinuteKey),
+      scrap: intMap(map['scrap'], RdpLabelAliases.normalizeScrapKey),
+    );
+  }
+
+  /// Divide o PN em 2 partes para as 2 sub-colunas do papel ("G15 3340").
+  List<String> get pnPartes {
+    final parts = pnPeca
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return const ['', ''];
+    if (parts.length == 1) return [parts.first, ''];
+    return [parts.first, parts.sublist(1).join(' ')];
+  }
 }
 
 /// Cabeçalho do RDP
@@ -103,6 +145,50 @@ class RdpReport {
         totaisTempoPerdido = totaisTempoPerdido ?? {},
         totaisParadas = totaisParadas ?? {},
         totaisScrap = totaisScrap ?? {};
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'data': data,
+      'maquina': maquina,
+      'operador': operador,
+      'reg': reg,
+      'turno': turno,
+      'horaInicial': horaInicial,
+      'horaFinal': horaFinal,
+      'horimetroInicial': horimetroInicial,
+      'horimetroFinal': horimetroFinal,
+      'horimetroTotal': horimetroTotal,
+      'linhas': linhas.map((linha) => linha.toMap()).toList(),
+      'observacoes': observacoes,
+    };
+  }
+
+  factory RdpReport.fromMap(Map<String, dynamic> map) {
+    final rawLines = map['linhas'];
+    final lines = rawLines is List
+        ? rawLines
+            .whereType<Map>()
+            .map((line) => RdpLine.fromMap(Map<String, dynamic>.from(line)))
+            .toList()
+        : <RdpLine>[];
+
+    return RdpReport(
+      id: map['id']?.toString(),
+      data: map['data']?.toString() ?? '',
+      maquina: map['maquina']?.toString() ?? '',
+      operador: map['operador']?.toString() ?? '',
+      reg: map['reg']?.toString() ?? '',
+      turno: map['turno']?.toString() ?? '',
+      horaInicial: map['horaInicial']?.toString() ?? '',
+      horaFinal: map['horaFinal']?.toString() ?? '',
+      horimetroInicial: map['horimetroInicial']?.toString() ?? '',
+      horimetroFinal: map['horimetroFinal']?.toString() ?? '',
+      horimetroTotal: map['horimetroTotal']?.toString() ?? '',
+      linhas: lines,
+      observacoes: map['observacoes']?.toString() ?? '',
+    );
+  }
 
   void calcularTotais() {
     totaisTempoMorto.clear();

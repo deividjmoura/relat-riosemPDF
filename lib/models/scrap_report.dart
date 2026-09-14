@@ -2,26 +2,55 @@ import 'package:uuid/uuid.dart';
 
 class ScrapItem {
   final String id;
-  String terminal; // ou código do item (ex: E14152900)
-  String quantidade;
-  String total;
+  String terminal; // código do item (ex: E14152900)
+  String quantidade; // quantidade de peças/unidades descartadas
+  int pesoGramas; // peso real do scrap; unidade interna: gramas
   String motivo; // código (1410, 711, etc.)
 
   ScrapItem({
     String? id,
     this.terminal = '',
     this.quantidade = '',
-    this.total = '',
+    this.pesoGramas = 0,
     this.motivo = '',
   }) : id = id ?? const Uuid().v4();
+
+  String get pesoKgFormatado => (pesoGramas / 1000).toStringAsFixed(2);
+
+  /// Compatibilidade com a geração de PDF existente: "TOTAL" representa kg.
+  String get total => pesoGramas > 0 ? pesoKgFormatado.replaceAll('.', ',') : '';
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'terminal': terminal,
         'quantidade': quantidade,
-        'total': total,
+        'pesoGramas': pesoGramas,
         'motivo': motivo,
       };
+
+  factory ScrapItem.fromMap(Map<String, dynamic> map) {
+    final rawPeso = map['pesoGramas'];
+    int peso;
+    if (rawPeso is num) {
+      peso = rawPeso.round();
+    } else {
+      peso = int.tryParse('$rawPeso') ?? 0;
+    }
+
+    // Compatibilidade com registros antigos que usavam "total" em kg.
+    if (peso == 0 && map['total'] != null) {
+      final legacy = double.tryParse('${map['total']}'.replaceAll(',', '.'));
+      if (legacy != null) peso = (legacy * 1000).round();
+    }
+
+    return ScrapItem(
+      id: map['id']?.toString(),
+      terminal: map['terminal']?.toString() ?? '',
+      quantidade: map['quantidade']?.toString() ?? '',
+      pesoGramas: peso,
+      motivo: map['motivo']?.toString() ?? '',
+    );
+  }
 }
 
 class ScrapReport {
@@ -54,6 +83,44 @@ class ScrapReport {
         terminais = terminais ?? [],
         selos = selos ?? [],
         cabos = cabos ?? [];
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'maquina': maquina,
+        'centro': centro,
+        'turno': turno,
+        'data': data,
+        'matricula': matricula,
+        'operador': operador,
+        'nomeLider': nomeLider,
+        'terminais': terminais.map((e) => e.toMap()).toList(),
+        'selos': selos.map((e) => e.toMap()).toList(),
+        'cabos': cabos.map((e) => e.toMap()).toList(),
+      };
+
+  factory ScrapReport.fromMap(Map<String, dynamic> map) {
+    List<ScrapItem> readItems(dynamic value) {
+      if (value is! List) return [];
+      return value
+          .whereType<Map>()
+          .map((item) => ScrapItem.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    }
+
+    return ScrapReport(
+      id: map['id']?.toString(),
+      maquina: map['maquina']?.toString() ?? '',
+      centro: map['centro']?.toString() ?? 'Corte',
+      turno: map['turno']?.toString() ?? '',
+      data: map['data']?.toString() ?? '',
+      matricula: map['matricula']?.toString() ?? '',
+      operador: map['operador']?.toString() ?? '',
+      nomeLider: map['nomeLider']?.toString() ?? '',
+      terminais: readItems(map['terminais']),
+      selos: readItems(map['selos']),
+      cabos: readItems(map['cabos']),
+    );
+  }
 }
 
 /// Lista oficial de motivos de scrap (códigos)

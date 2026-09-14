@@ -1,7 +1,7 @@
 name: relatorios_em_pdf
 description: App offline para RDP e Registro de Scrap - Lear Corporation
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -23,7 +23,7 @@ dependencies:
   printing: ^5.13.3
 
   # Código de barras / câmera
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.4.1
 
   # UI
   cupertino_icons: ^1.0.8
