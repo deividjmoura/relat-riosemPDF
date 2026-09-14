@@ -507,6 +507,8 @@ class PdfService {
           color: bg, border: pw.Border.all(color: _border, width: 0.4)),
       child: pw.Transform.rotateBox(
         angle: -math.pi / 2,
+        // Sem isso o texto é medido na largura da coluna (14pt) e corta.
+        unconstrained: true,
         child: pw.Container(
           width: h - 4,
           alignment: pw.Alignment.center,
