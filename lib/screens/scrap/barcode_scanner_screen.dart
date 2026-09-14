@@ -10,8 +10,30 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  final MobileScannerController controller = MobileScannerController();
+  late final MobileScannerController controller;
   bool _scanned = false;
+  bool _starting = true;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = MobileScannerController(autoStart: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
+  }
+
+  Future<void> _startCamera() async {
+    if (!mounted) return;
+
+    setState(() => _starting = true);
+    try {
+      await controller.start();
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao iniciar câmera do scanner: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -22,7 +44,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   void _onDetect(BarcodeCapture capture) {
     if (_scanned) return;
     final code = BarcodeService.extractItemCode(capture);
-    if (code != null) {
+    if (code != null && code.isNotEmpty && mounted) {
       _scanned = true;
       Navigator.pop(context, code);
     }
@@ -31,25 +53,71 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Ler Código de Barras'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
       body: Stack(
+        fit: StackFit.expand,
         children: [
           MobileScanner(
             controller: controller,
             onDetect: _onDetect,
+            errorBuilder: (context, error) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.camera_alt_outlined,
+                        color: Colors.white,
+                        size: 64,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Não foi possível abrir a câmera.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        error.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: _startCamera,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar novamente'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-          // Overlay simples
-          Center(
-            child: Container(
-              width: 280,
-              height: 160,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.greenAccent, width: 3),
-                borderRadius: BorderRadius.circular(12),
+          if (_starting)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          IgnorePointer(
+            child: Center(
+              child: Container(
+                width: 300,
+                height: 150,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.greenAccent, width: 3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -60,7 +128,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
             child: const Text(
               'Aponte para o código de barras da etiqueta',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 4)]),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                shadows: [Shadow(blurRadius: 4)],
+              ),
             ),
           ),
         ],
