@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/rdp_report.dart';
 import '../../services/pdf_service.dart';
 import '../../services/timer_service.dart';
 import '../../utils/constants.dart';
+import '../../utils/input_helpers.dart';
 import 'rdp_setup_dialog.dart';
 import 'rdp_timers_screen.dart';
 
@@ -18,6 +20,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
     data: DateTime.now().toString().substring(0, 10),
   );
 
+  late final TextEditingController _dataCtrl;
   final _maquinaCtrl = TextEditingController();
   final _operadorCtrl = TextEditingController();
   final _regCtrl = TextEditingController();
@@ -33,6 +36,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   @override
   void initState() {
     super.initState();
+    _dataCtrl = TextEditingController(text: report.data);
     _timerService.addListener(_onTimersChanged);
   }
 
@@ -43,6 +47,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   @override
   void dispose() {
     _timerService.removeListener(_onTimersChanged);
+    _dataCtrl.dispose();
     _maquinaCtrl.dispose();
     _operadorCtrl.dispose();
     _regCtrl.dispose();
@@ -114,6 +119,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   }
 
   Future<void> _gerarPdf() async {
+    report.data = _dataCtrl.text.trim();
     report.maquina = _maquinaCtrl.text.trim();
     report.operador = _operadorCtrl.text.trim();
     report.reg = _regCtrl.text.trim();
@@ -171,13 +177,32 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
+                  // Data com calendário
+                  TextField(
+                    controller: _dataCtrl,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Data',
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    onTap: () async {
+                      final picked = await pickDate(context, initial: _dataCtrl.text);
+                      if (picked != null) {
+                        setState(() => _dataCtrl.text = picked);
+                      }
+                    },
+                  ),
                   TextField(
                     controller: _maquinaCtrl,
                     decoration: const InputDecoration(labelText: 'Máquina (MAQ)'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
                   ),
                   TextField(
                     controller: _operadorCtrl,
                     decoration: const InputDecoration(labelText: 'Operador'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
                   ),
                   Row(
                     children: [
@@ -185,6 +210,8 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                         child: TextField(
                           controller: _regCtrl,
                           decoration: const InputDecoration(labelText: 'REG'),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseTextFormatter()],
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -192,6 +219,8 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                         child: TextField(
                           controller: _turnoCtrl,
                           decoration: const InputDecoration(labelText: 'Turno'),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseTextFormatter()],
                         ),
                       ),
                     ],
@@ -202,17 +231,24 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                       Expanded(
                         child: TextField(
                           controller: _horaInicialCtrl,
-                          decoration: const InputDecoration(labelText: 'Hora Inicial'),
-                          keyboardType: TextInputType.datetime,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Hora Inicial',
+                            suffixIcon: Icon(Icons.access_time),
+                          ),
+                          onTap: () async {
+                            final t = await pickTime(context, initial: _horaInicialCtrl.text);
+                            if (t != null) setState(() => _horaInicialCtrl.text = t);
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _horimetroInicialCtrl,
-                          decoration:
-                              const InputDecoration(labelText: 'Horímetro Inicial'),
+                          decoration: const InputDecoration(labelText: 'Horímetro Inicial'),
                           keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         ),
                       ),
                     ],
@@ -222,17 +258,24 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                       Expanded(
                         child: TextField(
                           controller: _horaFinalCtrl,
-                          decoration: const InputDecoration(labelText: 'Hora Final'),
-                          keyboardType: TextInputType.datetime,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Hora Final',
+                            suffixIcon: Icon(Icons.access_time),
+                          ),
+                          onTap: () async {
+                            final t = await pickTime(context, initial: _horaFinalCtrl.text);
+                            if (t != null) setState(() => _horaFinalCtrl.text = t);
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _horimetroFinalCtrl,
-                          decoration:
-                              const InputDecoration(labelText: 'Horímetro Final'),
+                          decoration: const InputDecoration(labelText: 'Horímetro Final'),
                           keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         ),
                       ),
                     ],
@@ -241,6 +284,8 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                     controller: _observacoesCtrl,
                     decoration: const InputDecoration(labelText: 'Observações'),
                     maxLines: 2,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
                   ),
                 ],
               ),

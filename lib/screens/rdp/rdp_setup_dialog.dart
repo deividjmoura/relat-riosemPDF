@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/rdp_report.dart';
+import '../../utils/input_helpers.dart';
 
 class RdpSetupDialog extends StatefulWidget {
   /// Se informado, abre em modo edição
@@ -86,37 +88,52 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
               controller: _pnCtrl,
               decoration: const InputDecoration(labelText: 'PN da Peça *'),
               autofocus: !isEditing,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [UpperCaseTextFormatter()],
             ),
             TextField(
               controller: _inicioCtrl,
+              readOnly: true,
               decoration: const InputDecoration(
                 labelText: 'Início da Atividade (HH:MM)',
-                hintText: 'Ex: 08:15',
+                hintText: 'Toque para escolher',
+                suffixIcon: Icon(Icons.access_time),
               ),
-              keyboardType: TextInputType.datetime,
+              onTap: () async {
+                final t = await pickTime(context, initial: _inicioCtrl.text);
+                if (t != null) setState(() => _inicioCtrl.text = t);
+              },
             ),
             TextField(
               controller: _terminoCtrl,
+              readOnly: true,
               decoration: const InputDecoration(
                 labelText: 'Término da Atividade (HH:MM)',
                 hintText: 'Pode preencher depois',
+                suffixIcon: Icon(Icons.access_time),
               ),
-              keyboardType: TextInputType.datetime,
+              onTap: () async {
+                final t = await pickTime(context, initial: _terminoCtrl.text);
+                if (t != null) setState(() => _terminoCtrl.text = t);
+              },
             ),
             TextField(
               controller: _taxaPlanCtrl,
               decoration: const InputDecoration(labelText: 'Taxa Planejada'),
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             TextField(
               controller: _taxaRealCtrl,
               decoration: const InputDecoration(labelText: 'Taxa Real'),
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             TextField(
               controller: _qtdCtrl,
               decoration: const InputDecoration(labelText: 'Quantidade de Peças'),
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
           ],
         ),

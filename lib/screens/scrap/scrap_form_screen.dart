@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/scrap_report.dart';
 import '../../services/pdf_service.dart';
+import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
 
 class ScrapFormScreen extends StatefulWidget {
@@ -16,6 +18,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     centro: 'Corte',
   );
 
+  late final TextEditingController _dataCtrl;
   final _maquinaCtrl = TextEditingController();
   final _operadorCtrl = TextEditingController();
   final _liderCtrl = TextEditingController();
@@ -23,7 +26,14 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   final _turnoCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _dataCtrl = TextEditingController(text: report.data);
+  }
+
+  @override
   void dispose() {
+    _dataCtrl.dispose();
     _maquinaCtrl.dispose();
     _operadorCtrl.dispose();
     _liderCtrl.dispose();
@@ -56,13 +66,15 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
           controller: ctrl,
           decoration: const InputDecoration(labelText: 'Código / Terminal'),
           autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [UpperCaseTextFormatter()],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () async {
               if (ctrl.text.isNotEmpty) {
-                final item = ScrapItem(terminal: ctrl.text.trim());
+                final item = ScrapItem(terminal: ctrl.text.trim().toUpperCase());
                 setState(() => targetList.add(item));
                 Navigator.pop(context);
                 await _editItem(item);
@@ -153,6 +165,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   }
 
   Future<void> _gerarPdf() async {
+    report.data = _dataCtrl.text.trim();
     report.maquina = _maquinaCtrl.text.trim();
     report.operador = _operadorCtrl.text.trim();
     report.nomeLider = _liderCtrl.text.trim();
@@ -254,25 +267,55 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
               child: Column(
                 children: [
                   TextField(
-                      controller: _maquinaCtrl, decoration: const InputDecoration(labelText: 'Máquina')),
+                    controller: _dataCtrl,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Data',
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    onTap: () async {
+                      final picked = await pickDate(context, initial: _dataCtrl.text);
+                      if (picked != null) {
+                        setState(() => _dataCtrl.text = picked);
+                      }
+                    },
+                  ),
                   TextField(
-                      controller: _operadorCtrl,
-                      decoration: const InputDecoration(labelText: 'Operador')),
+                    controller: _maquinaCtrl,
+                    decoration: const InputDecoration(labelText: 'Máquina'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
+                  ),
                   TextField(
-                      controller: _liderCtrl,
-                      decoration: const InputDecoration(labelText: 'Nome do Líder')),
+                    controller: _operadorCtrl,
+                    decoration: const InputDecoration(labelText: 'Operador'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
+                  ),
+                  TextField(
+                    controller: _liderCtrl,
+                    decoration: const InputDecoration(labelText: 'Nome do Líder'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
+                  ),
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
-                            controller: _matriculaCtrl,
-                            decoration: const InputDecoration(labelText: 'Matrícula')),
+                          controller: _matriculaCtrl,
+                          decoration: const InputDecoration(labelText: 'Matrícula'),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseTextFormatter()],
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
-                            controller: _turnoCtrl,
-                            decoration: const InputDecoration(labelText: 'Turno')),
+                          controller: _turnoCtrl,
+                          decoration: const InputDecoration(labelText: 'Turno'),
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseTextFormatter()],
+                        ),
                       ),
                     ],
                   ),
