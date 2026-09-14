@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import '../models/rdp_report.dart';
 import '../models/scrap_report.dart';
 import '../utils/constants.dart';
+import '../utils/lear_logo.dart';
 
 class PdfService {
   static final _border = PdfColor.fromHex('#333333');
@@ -19,6 +20,7 @@ class PdfService {
   static Future<void> generateRdpPdf(RdpReport report) async {
     final pdf = pw.Document();
     report.calcularTotais();
+    final logo = pw.MemoryImage(learLogoBytes);
 
     pdf.addPage(
       pw.Page(
@@ -28,7 +30,7 @@ class PdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              _buildRdpHeader(report),
+              _buildRdpHeader(report, logo),
               pw.SizedBox(height: 4),
               _buildRdpMainTable(report),
               pw.SizedBox(height: 4),
@@ -45,62 +47,65 @@ class PdfService {
     );
   }
 
-  static pw.Widget _buildRdpHeader(RdpReport report) {
+  static pw.Widget _buildRdpHeader(RdpReport report, pw.ImageProvider logo) {
     return pw.Column(
       children: [
         pw.Container(
+          height: 58,
           decoration: pw.BoxDecoration(border: pw.Border.all(color: _border, width: 0.8)),
           child: pw.Row(
             children: [
               pw.Expanded(
-                flex: 6,
+                flex: 7,
                 child: pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      pw.Container(
-                        width: 22,
-                        height: 22,
-                        decoration: pw.BoxDecoration(color: _learRed, shape: pw.BoxShape.circle),
+                      pw.Image(logo, width: 150, height: 48, fit: pw.BoxFit.contain),
+                      pw.SizedBox(width: 22),
+                      pw.Expanded(
                         child: pw.Center(
-                          child: pw.Text('L',
-                              style: pw.TextStyle(
-                                  color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                          child: pw.Text(
+                            'RDP - Relatório de Produção do Corte',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
+                          ),
                         ),
                       ),
-                      pw.SizedBox(width: 6),
-                      pw.Text('LEAR',
-                          style: pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold, fontSize: 11, color: _learRed)),
-                      pw.SizedBox(width: 4),
-                      pw.Text('CORPORATION', style: const pw.TextStyle(fontSize: 8)),
-                      pw.SizedBox(width: 16),
-                      pw.Text('RDP - Relatório de Produção do Corte',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
                     ],
                   ),
                 ),
               ),
               pw.Container(
                 width: 90,
+                height: 58,
                 padding: const pw.EdgeInsets.all(3),
                 decoration: pw.BoxDecoration(
                     border: pw.Border(left: pw.BorderSide(color: _border, width: 0.6))),
-                child: pw.Column(children: [
-                  pw.Text('DATA', style: const pw.TextStyle(fontSize: 6)),
-                  pw.Text(report.data,
-                      style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                ]),
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Text('DATA', style: const pw.TextStyle(fontSize: 6)),
+                    pw.SizedBox(height: 3),
+                    pw.Text(report.data,
+                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
               ),
               pw.Container(
                 width: 70,
+                height: 58,
                 padding: const pw.EdgeInsets.all(3),
                 decoration: pw.BoxDecoration(
                     border: pw.Border(left: pw.BorderSide(color: _border, width: 0.6))),
-                child: pw.Column(children: [
-                  pw.Text('F QUA-E 054', style: const pw.TextStyle(fontSize: 6)),
-                  pw.Text('Rev. 04', style: const pw.TextStyle(fontSize: 6)),
-                ]),
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Text('F QUA-E 054', style: const pw.TextStyle(fontSize: 6)),
+                    pw.Text('Rev. 04', style: const pw.TextStyle(fontSize: 6)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -228,7 +233,6 @@ class PdfService {
       _cell('Taxa\nReal', bold: true, fontSize: 4.5, bg: _headerBg),
       _cell('QUANTIDADE\nPEÇAS', bold: true, fontSize: 4.5, bg: _headerBg),
     ];
-    // TM / TP / PP / Scrap — texto vertical como no formulário oficial
     for (final label in TempoMortoCategories.short) {
       cells.add(_vCell(label));
     }
@@ -402,7 +406,6 @@ class PdfService {
     );
   }
 
-  /// Célula com texto vertical (como no formulário oficial)
   static pw.Widget _vCell(String text, {double height = 55, PdfColor? bg}) {
     return pw.Container(
       color: bg ?? _headerBg,
@@ -440,7 +443,6 @@ class PdfService {
             children: [
               _scrapTopHeader(report),
               pw.SizedBox(height: 6),
-              // TERMINAL (duas colunas: 1-15 | 16-30)
               _scrapSectionDual(
                 titleLeft: 'TERMINAL',
                 titleRight: 'TERMINAL',
@@ -450,7 +452,6 @@ class PdfService {
                 rightCount: 15,
               ),
               pw.SizedBox(height: 6),
-              // SELO (duas colunas: 1-7 | 1-7)
               _scrapSectionDual(
                 titleLeft: 'SELO',
                 titleRight: 'SELO',
@@ -460,7 +461,6 @@ class PdfService {
                 rightCount: 7,
               ),
               pw.SizedBox(height: 6),
-              // CABO (duas colunas: 1-23 | 1-23)
               _scrapSectionDual(
                 titleLeft: 'CABO',
                 titleRight: 'CABO',
@@ -495,7 +495,6 @@ class PdfService {
       decoration: pw.BoxDecoration(border: pw.Border.all(color: _border, width: 0.8)),
       child: pw.Column(
         children: [
-          // Título
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: pw.Row(
@@ -529,7 +528,6 @@ class PdfService {
               ],
             ),
           ),
-          // Linha 1
           pw.Table(
             border: pw.TableBorder(
               top: pw.BorderSide(color: _border, width: 0.5),
@@ -555,7 +553,7 @@ class PdfService {
               pw.TableRow(children: [
                 _scrapFieldCell('Matrícula:', report.matricula),
                 _scrapFieldCell('Operador:', report.operador),
-                _scrapFieldCell('Nome do líder:', report.nomeLider, colSpanHint: true),
+                _scrapFieldCell('Nome do líder:', report.nomeLider),
                 _scrapFieldCell('', ''),
               ]),
             ],
@@ -565,7 +563,7 @@ class PdfService {
     );
   }
 
-  static pw.Widget _scrapFieldCell(String label, String value, {bool colSpanHint = false}) {
+  static pw.Widget _scrapFieldCell(String label, String value) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       child: pw.RichText(
@@ -582,7 +580,6 @@ class PdfService {
     );
   }
 
-  /// Seção com duas tabelas lado a lado (como no formulário oficial)
   static pw.Widget _scrapSectionDual({
     required String titleLeft,
     required String titleRight,
@@ -602,7 +599,6 @@ class PdfService {
       required int itemOffset,
     }) {
       final rows = <pw.TableRow>[
-        // header
         pw.TableRow(
           decoration: pw.BoxDecoration(color: _headerBg),
           children: [
@@ -620,9 +616,7 @@ class PdfService {
         final item = idx < items.length ? items[idx] : null;
         rows.add(pw.TableRow(children: [
           _sCell(
-            item != null && item.terminal.isNotEmpty
-                ? '$num  ${item.terminal}'
-                : '$num',
+            item != null && item.terminal.isNotEmpty ? '$num  ${item.terminal}' : '$num',
             fontSize: fontSize,
             alignLeft: true,
             height: rowH,
@@ -633,7 +627,6 @@ class PdfService {
         ]));
       }
 
-      // linha TOTAL
       rows.add(pw.TableRow(
         decoration: pw.BoxDecoration(color: _totalBg),
         children: [
