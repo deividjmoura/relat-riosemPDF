@@ -5,6 +5,7 @@ import '../../services/database_service.dart';
 import '../../services/pdf_service.dart';
 import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
+import '../history_screen.dart';
 
 class ScrapFormScreen extends StatefulWidget {
   const ScrapFormScreen({super.key});
@@ -140,6 +141,75 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     );
   }
 
+  /// Seletor de motivo do scrap com busca (código ou descrição).
+  Future<String?> _pickMotivo(BuildContext parentCtx, String current) {
+    final entries = MotivosScrap.lista.entries.toList();
+    final searchCtrl = TextEditingController();
+    String query = '';
+    String norm(String v) {
+      const from = 'àáâãäåèéêëìíîïòóôõöùúûüçñÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÇÑ';
+      const to = 'aaaaaaaaeeeeiiiiooooouuuucnAAAAAAAAEEEEIIIIOOOOOUUUUCN';
+      final buf = StringBuffer();
+      for (var i = 0; i < v.length; i++) {
+        final idx = from.indexOf(v[i]);
+        buf.write(idx < 0 ? v[i] : to[idx]);
+      }
+      return buf.toString().toLowerCase();
+    }
+    return showDialog<String>(
+      context: parentCtx,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final q = norm(query.trim());
+          final filtered = q.isEmpty
+              ? entries
+              : entries.where((e) => norm(e.key + ' ' + e.value).contains(q)).toList();
+          return AlertDialog(
+            title: const Text('Motivo do scrap'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 440,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: searchCtrl,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar código ou motivo...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (v) => setLocal(() => query = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(child: Text('Nenhum motivo encontrado'))
+                        : ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final e = filtered[index];
+                              return ListTile(
+                                title: Text(e.key + ' – ' + e.value, style: const TextStyle(fontSize: 13)),
+                                trailing: e.key == current ? const Icon(Icons.check, color: Colors.green) : null,
+                                onTap: () => Navigator.pop(ctx, e.key),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            ],
+          );
+        },
+      ),
+    ).whenComplete(searchCtrl.dispose);
+  }
+
   Future<void> _editItem(ScrapItem item) async {
     final qtdCtrl = TextEditingController(text: item.quantidade);
     final pesoCtrl = TextEditingController(
@@ -189,25 +259,33 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                     child: Text('Motivo', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 4),
-                  DropdownButtonFormField<String>(
-                    value: selectedMotivo.isEmpty ? null : selectedMotivo,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    hint: const Text('Selecione o código'),
-                    items: MotivosScrap.lista.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(
-                                '${e.key} – ${e.value}',
-                                style: const TextStyle(fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
+                  InkWell(
+                    onTap: () async {
+                      final picked = await _pickMotivo(ctx, selectedMotivo);
+                      if (picked != null) setLocal(() => selectedMotivo = picked);
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedMotivo.isEmpty
+                                  ? 'Selecione o código'
+                                  : selectedMotivo + ' – ' + (MotivosScrap.lista[selectedMotivo] ?? ''),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: selectedMotivo.isEmpty ? Colors.grey.shade600 : null,
                               ),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setLocal(() => selectedMotivo = v ?? ''),
+                            ),
+                          ),
+                          const Icon(Icons.search, size: 20, color: Colors.grey),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -238,9 +316,36 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
   }
 
   Future<void> _gerarPdf() async {
-    _syncHeader();
-    await _saveDraft();
-    await PdfService.generateScrapPdf(report);
+    try {
+      _syncHeader();
+      await _saveDraft();
+      await PdfService.generateScrapPdf(report);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('PDF do scrap gerado e salvo no histórico.'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'HISTÓRICO',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('ERRO AO GERAR PDF DO SCRAP: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao gerar PDF: $error'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSection(String title, List<ScrapItem> items) {

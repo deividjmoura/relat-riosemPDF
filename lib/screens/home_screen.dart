@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'rdp/rdp_form_screen.dart';
 import 'scrap/scrap_form_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -54,6 +55,21 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
+
+            // Card Histórico
+            _MenuCard(
+              title: 'Histórico de PDFs',
+              subtitle: 'Rever e reenviar documentos',
+              icon: Icons.history,
+              color: Colors.green.shade700,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
 
             const Spacer(),
             const Text(

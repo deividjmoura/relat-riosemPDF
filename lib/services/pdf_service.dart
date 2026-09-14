@@ -1,10 +1,16 @@
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/rdp_report.dart';
 import '../models/scrap_report.dart';
 import '../utils/constants.dart';
+import 'database_service.dart';
 
 class PdfService {
   static final _border = PdfColors.black;
@@ -61,16 +67,35 @@ class PdfService {
   static const double _hFootBand = 14; // x4 = 56
   static const double _gap = 3;
 
+  /// Salva o PDF no aparelho e registra no historico. Nunca quebra a geracao.
+  static Future<Uint8List> _recordPdf({
+    required pw.Document pdf,
+    required String tipo,
+    required String titulo,
+    required String fileName,
+  }) async {
+    final bytes = await pdf.save();
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final pdfDir = Directory(dir.path + '/pdfs');
+      if (!await pdfDir.exists()) await pdfDir.create(recursive: true);
+      final file = File(pdfDir.path + '/' + fileName + '.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      await DatabaseService.instance.saveGeneratedDoc(
+        tipo: tipo,
+        titulo: titulo,
+        filename: fileName + '.pdf',
+        path: file.path,
+      );
+    } catch (e) {
+      debugPrint('HISTORICO: falha ao salvar PDF');
+    }
+    return bytes;
+  }
+
   static Future<void> generateRdpPdf(RdpReport report) async {
     final pdf = pw.Document();
     report.calcularTotais();
-    if (report.horimetroTotal.isEmpty) {
-      final hi = int.tryParse(report.horimetroInicial);
-      final hf = int.tryParse(report.horimetroFinal);
-      if (hi != null && hf != null && hf >= hi) {
-        report.horimetroTotal = '${hf - hi}';
-      }
-    }
     final dataFmt = _fmtData(report.data);
 
     pdf.addPage(
@@ -100,10 +125,18 @@ class PdfService {
       ),
     );
 
+    final fileName = _safeFileName(
+        'RDP_${report.maquina}_${dataFmt.replaceAll('/', '-')}');
+    final bytes = await _recordPdf(
+      pdf: pdf,
+      tipo: 'RDP',
+      titulo: 'RDP MAQ ' + report.maquina + ' - ' + dataFmt,
+      fileName: fileName,
+    );
+
     await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-      name: _safeFileName(
-          'RDP_${report.maquina}_${dataFmt.replaceAll('/', '-')}'),
+      onLayout: (format) async => bytes,
+      name: fileName,
     );
   }
 
@@ -387,58 +420,16 @@ class PdfService {
       );
     }
 
-    pw.Widget subHorim(String lab, String val, double w) {
-      return pw.Container(
-        width: w,
-        height: valueH,
-        alignment: pw.Alignment.center,
-        decoration: pw.BoxDecoration(
-            border: pw.Border(
-                right: pw.BorderSide(color: _border, width: 0.4))),
-        child: pw.Column(
-          mainAxisAlignment: pw.MainAxisAlignment.center,
-          children: [
-            pw.Text(lab, style: const pw.TextStyle(fontSize: 5.5)),
-            pw.Text(val,
-                style: pw.TextStyle(
-                    fontSize: 8, fontWeight: pw.FontWeight.bold),
-                maxLines: 1),
-          ],
-        ),
-      );
-    }
 
-    pw.Widget horimCell(String label, String hora, String min, double w) {
-      return pw.Container(
-        width: w,
-        height: _hB,
-        decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: _border, width: 0.4)),
-        child: pw.Column(
-          children: [
-            labelBox(label),
-            pw.Row(
-              children: [
-                subHorim('hora', hora, w / 2),
-                subHorim('Min', min, w / 2),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
 
-    const double wOper = _rightTotal - 44 - 60 - 66 - 78 - 78 - 52; // 112
+    const double wOper = _rightTotal - 44 - 60 - 66 - 78 - 78; // 164
     return pw.Row(children: [
       cell('MAQ', report.maquina, 44),
       cell('OPERADOR', report.operador, wOper, valueSize: 8),
       cell('REG', report.reg, 60),
       turnoCell(),
-      horimCell(
-          'Horímetro Inicial', report.horaInicial, report.horimetroInicial, 78),
-      horimCell(
-          'Horímetro Final', report.horaFinal, report.horimetroFinal, 78),
-      cell('Horímetro Total', report.horimetroTotal, 52, valueSize: 8),
+      cell('Hora Inicial', report.horaInicial, 78, valueSize: 8),
+      cell('Hora Final', report.horaFinal, 78, valueSize: 8),
     ]);
   }
 
@@ -923,10 +914,18 @@ class PdfService {
       ),
     );
 
+    final fileName = _safeFileName(
+        'Scrap_${report.maquina}_${report.data.replaceAll('/', '-')}');
+    final bytes = await _recordPdf(
+      pdf: pdf,
+      tipo: 'Scrap',
+      titulo: 'Scrap MAQ ' + report.maquina + ' - ' + report.data,
+      fileName: fileName,
+    );
+
     await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-      name: _safeFileName(
-          'Scrap_${report.maquina}_${report.data.replaceAll('/', '-')}'),
+      onLayout: (format) async => bytes,
+      name: fileName,
     );
   }
 

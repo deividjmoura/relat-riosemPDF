@@ -109,9 +109,6 @@ class RdpReport {
   String turno;
   String horaInicial;
   String horaFinal;
-  String horimetroInicial;
-  String horimetroFinal;
-  String horimetroTotal;
   List<RdpLine> linhas;
   String observacoes;
 
@@ -130,9 +127,6 @@ class RdpReport {
     this.turno = '',
     this.horaInicial = '',
     this.horaFinal = '',
-    this.horimetroInicial = '',
-    this.horimetroFinal = '',
-    this.horimetroTotal = '',
     List<RdpLine>? linhas,
     this.observacoes = '',
     Map<String, int>? totaisTempoMorto,
@@ -156,9 +150,6 @@ class RdpReport {
       'turno': turno,
       'horaInicial': horaInicial,
       'horaFinal': horaFinal,
-      'horimetroInicial': horimetroInicial,
-      'horimetroFinal': horimetroFinal,
-      'horimetroTotal': horimetroTotal,
       'linhas': linhas.map((linha) => linha.toMap()).toList(),
       'observacoes': observacoes,
     };
@@ -182,9 +173,6 @@ class RdpReport {
       turno: map['turno']?.toString() ?? '',
       horaInicial: map['horaInicial']?.toString() ?? '',
       horaFinal: map['horaFinal']?.toString() ?? '',
-      horimetroInicial: map['horimetroInicial']?.toString() ?? '',
-      horimetroFinal: map['horimetroFinal']?.toString() ?? '',
-      horimetroTotal: map['horimetroTotal']?.toString() ?? '',
       linhas: lines,
       observacoes: map['observacoes']?.toString() ?? '',
     );

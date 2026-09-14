@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../models/rdp_report.dart';
 import '../../services/database_service.dart';
 import '../../services/pdf_service.dart';
@@ -7,6 +6,7 @@ import '../../services/timer_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/input_helpers.dart';
 import 'rdp_setup_dialog.dart';
+import '../history_screen.dart';
 import 'rdp_timers_screen.dart';
 
 class RdpFormScreen extends StatefulWidget {
@@ -28,8 +28,6 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   final _turnoCtrl = TextEditingController();
   final _horaInicialCtrl = TextEditingController();
   final _horaFinalCtrl = TextEditingController();
-  final _horimetroInicialCtrl = TextEditingController();
-  final _horimetroFinalCtrl = TextEditingController();
   final _observacoesCtrl = TextEditingController();
 
   final _timerService = TimerService.instance;
@@ -57,9 +55,6 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
       report.turno = saved.turno;
       report.horaInicial = saved.horaInicial;
       report.horaFinal = saved.horaFinal;
-      report.horimetroInicial = saved.horimetroInicial;
-      report.horimetroFinal = saved.horimetroFinal;
-      report.horimetroTotal = saved.horimetroTotal;
       report.observacoes = saved.observacoes;
       report.linhas = saved.linhas;
 
@@ -70,8 +65,6 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
       _turnoCtrl.text = report.turno;
       _horaInicialCtrl.text = report.horaInicial;
       _horaFinalCtrl.text = report.horaFinal;
-      _horimetroInicialCtrl.text = report.horimetroInicial;
-      _horimetroFinalCtrl.text = report.horimetroFinal;
       _observacoesCtrl.text = report.observacoes;
     }
 
@@ -97,8 +90,6 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
     _turnoCtrl.dispose();
     _horaInicialCtrl.dispose();
     _horaFinalCtrl.dispose();
-    _horimetroInicialCtrl.dispose();
-    _horimetroFinalCtrl.dispose();
     _observacoesCtrl.dispose();
     super.dispose();
   }
@@ -111,15 +102,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
     report.turno = _turnoCtrl.text.trim();
     report.horaInicial = _horaInicialCtrl.text.trim();
     report.horaFinal = _horaFinalCtrl.text.trim();
-    report.horimetroInicial = _horimetroInicialCtrl.text.trim();
-    report.horimetroFinal = _horimetroFinalCtrl.text.trim();
     report.observacoes = _observacoesCtrl.text.trim();
-
-    final hi = int.tryParse(report.horimetroInicial);
-    final hf = int.tryParse(report.horimetroFinal);
-    if (hi != null && hf != null && hf >= hi) {
-      report.horimetroTotal = '${hf - hi}';
-    }
   }
 
   Future<void> _headerChanged(String _) async {
@@ -200,9 +183,16 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF do RDP gerado com sucesso.'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Text('PDF do RDP gerado e salvo no histórico.'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'HISTÓRICO',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              ),
+            ),
           ),
         );
       }
@@ -324,69 +314,37 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _horaInicialCtrl,
-                          readOnly: true,
-                          onChanged: _headerChanged,
-                          decoration: const InputDecoration(
-                            labelText: 'Hora Inicial',
-                            suffixIcon: Icon(Icons.access_time),
-                          ),
-                          onTap: () async {
-                            final t = await pickTime(context, initial: _horaInicialCtrl.text);
-                            if (t != null) {
-                              setState(() => _horaInicialCtrl.text = t);
-                              await _headerChanged(t);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _horimetroInicialCtrl,
-                          onChanged: _headerChanged,
-                          decoration: const InputDecoration(labelText: 'Horímetro Inicial'),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        ),
-                      ),
-                    ],
+                  TextField(
+                    controller: _horaInicialCtrl,
+                    readOnly: true,
+                    onChanged: _headerChanged,
+                    decoration: const InputDecoration(
+                      labelText: 'Hora Inicial',
+                      suffixIcon: Icon(Icons.access_time),
+                    ),
+                    onTap: () async {
+                      final t = await pickTime(context, initial: _horaInicialCtrl.text);
+                      if (t != null) {
+                        setState(() => _horaInicialCtrl.text = t);
+                        await _headerChanged(t);
+                      }
+                    },
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _horaFinalCtrl,
-                          readOnly: true,
-                          onChanged: _headerChanged,
-                          decoration: const InputDecoration(
-                            labelText: 'Hora Final',
-                            suffixIcon: Icon(Icons.access_time),
-                          ),
-                          onTap: () async {
-                            final t = await pickTime(context, initial: _horaFinalCtrl.text);
-                            if (t != null) {
-                              setState(() => _horaFinalCtrl.text = t);
-                              await _headerChanged(t);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _horimetroFinalCtrl,
-                          onChanged: _headerChanged,
-                          decoration: const InputDecoration(labelText: 'Horímetro Final'),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        ),
-                      ),
-                    ],
+                  TextField(
+                    controller: _horaFinalCtrl,
+                    readOnly: true,
+                    onChanged: _headerChanged,
+                    decoration: const InputDecoration(
+                      labelText: 'Hora Final',
+                      suffixIcon: Icon(Icons.access_time),
+                    ),
+                    onTap: () async {
+                      final t = await pickTime(context, initial: _horaFinalCtrl.text);
+                      if (t != null) {
+                        setState(() => _horaFinalCtrl.text = t);
+                        await _headerChanged(t);
+                      }
+                    },
                   ),
                   TextField(
                     controller: _observacoesCtrl,
