@@ -257,7 +257,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.picture_as_pdf),
-            onPressed: report.linhas.isEmpty || _gerandoPdf ? null : _gerarPdf,
+            onPressed: _gerandoPdf ? null : _gerarPdf,
             tooltip: 'Gerar PDF',
           ),
         ],
@@ -447,7 +447,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
-            onPressed: report.linhas.isEmpty || _gerandoPdf ? null : _gerarPdf,
+            onPressed: _gerandoPdf ? null : _gerarPdf,
             icon: _gerandoPdf
                 ? const SizedBox(
                     width: 20,
