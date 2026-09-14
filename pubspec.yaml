@@ -20,10 +20,10 @@ dependencies:
 
   # PDF
   pdf: ^3.11.1
-  printing: ^5.15.0
+  printing: ^5.13.3
 
   # Código de barras / câmera
-  mobile_scanner: ^6.0.11
+  mobile_scanner: ^5.2.3
 
   # UI
   cupertino_icons: ^1.0.8
