@@ -11,17 +11,15 @@ Aplicativo **offline-first** para Android (iOS depois) que digitaliza os formul�
 - Botão **Adicionar Setup** com todos os campos da linha inicial (PN da peça, taxa planejada, taxa real, quantidade, etc.)
 - Campos de cabeçalho: MAQ, Operador, REG, Turno, Horímetro Inicial/Final, Observações
 - **Cronômetros simultâneos** (vários ao mesmo tempo)
-  - Exemplo: Manutenção + Logística ao mesmo tempo
   - Ao parar um cronômetro pergunta: **“Essa pausa foi de que?”**
   - Os minutos são automaticamente lançados na coluna correta (TM / TP / PP)
 - Finalizar turno → gera **PDF no layout do formulário oficial** (A4 landscape)
-- Compartilhar ou salvar no celular
 
 ### Scrap
 - Formulário completo (Terminal, Selo, Cabo)
-- Leitura de **código de barras / QR** com a câmera do celular (preenche automaticamente Terminal/Item)
-- Motivos de scrap (códigos 1410, 1411… 1509) já cadastrados
-- Geração de PDF no formato oficial (em evolução)
+- Leitura de **código de barras / QR** com a câmera
+- Edição de item: quantidade, total e motivo (dropdown com códigos oficiais)
+- PDF no layout do **F QUA-E 102** (duas colunas, seções TERMINAL / SELO / CABO + lista de motivos)
 
 ## Tecnologias
 - Flutter 3.24+
@@ -30,55 +28,25 @@ Aplicativo **offline-first** para Android (iOS depois) que digitaliza os formul�
 - mobile_scanner – leitura de códigos de barras
 - provider – estado
 
-## Como clonar e subir o projeto
+## Como rodar
 
-### 1. Clone o repositório
 ```bash
 git clone https://github.com/deividjmoura/relat-riosemPDF.git
 cd relat-riosemPDF
-```
-
-### 2. Instale as dependências
-```bash
+flutter create . --platforms=android   # só na 1ª vez
 flutter pub get
+flutter run   # celular USB ou emulador
 ```
 
-### 3. Rode no Android
-```bash
-flutter run
-```
-
-### 4. Para gerar o APK de release
-```bash
-flutter build apk --release
-```
-O arquivo fica em: `build/app/outputs/flutter-apk/app-release.apk`
-
-## Estrutura de pastas
-
-```
-lib/
-├── main.dart
-├── app.dart
-├── models/               # Modelos de dados (RDP, Scrap, Timer)
-├── services/             # Banco, PDF, Barcode
-├── screens/
-│   ├── home_screen.dart
-│   ├── rdp/              # Telas do Relatório de Produção
-│   └── scrap/            # Telas do Registro de Scrap
-├── widgets/              # Cronômetros, dialogs
-└── utils/                # Categorias oficiais TM/TP/PP
-```
-
-## Próximos passos (roadmap)
+## Roadmap
 
 - [x] Estrutura inicial
 - [x] Tela de Setup + formulário RDP
 - [x] Multi-cronômetros com seleção de motivo
-- [x] Geração de PDF do RDP (layout alinhado ao F QUA-E 054)
-- [x] Tela de Scrap + scanner de código de barras
-- [ ] Geração de PDF do Scrap **idêntico** ao F QUA-E 102
-- [ ] Edição completa de item de scrap (qtd + motivo)
+- [x] PDF do RDP (layout F QUA-E 054)
+- [x] Tela de Scrap + scanner
+- [x] Edição de item de scrap (qtd + motivo)
+- [x] PDF do Scrap (layout F QUA-E 102)
 - [ ] Histórico de relatórios salvos
 - [ ] Exportação em lote
 - [ ] Versão iOS
