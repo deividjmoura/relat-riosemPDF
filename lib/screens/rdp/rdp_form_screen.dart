@@ -35,6 +35,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   final _timerService = TimerService.instance;
   final _database = DatabaseService.instance;
   bool _loadingDraft = true;
+  bool _gerandoPdf = false;
 
   @override
   void initState() {
@@ -188,10 +189,42 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
   }
 
   Future<void> _gerarPdf() async {
-    _syncHeader();
-    await _saveDraft();
-    report.calcularTotais();
-    await PdfService.generateRdpPdf(report);
+    if (_gerandoPdf) return;
+
+    setState(() => _gerandoPdf = true);
+    try {
+      _syncHeader();
+      await _saveDraft();
+      report.calcularTotais();
+      await PdfService.generateRdpPdf(report);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF do RDP gerado com sucesso.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (error, stackTrace) {
+      debugPrint('ERRO AO GERAR PDF DO RDP: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao gerar PDF: $error'),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'FECHAR',
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _gerandoPdf = false);
+    }
   }
 
   @override
@@ -217,8 +250,14 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
               ),
             ),
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: report.linhas.isEmpty ? null : _gerarPdf,
+            icon: _gerandoPdf
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.picture_as_pdf),
+            onPressed: report.linhas.isEmpty || _gerandoPdf ? null : _gerarPdf,
             tooltip: 'Gerar PDF',
           ),
         ],
@@ -408,9 +447,15 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
-            onPressed: report.linhas.isEmpty ? null : _gerarPdf,
-            icon: const Icon(Icons.picture_as_pdf),
-            label: const Text('Finalizar e Gerar PDF'),
+            onPressed: report.linhas.isEmpty || _gerandoPdf ? null : _gerarPdf,
+            icon: _gerandoPdf
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.picture_as_pdf),
+            label: Text(_gerandoPdf ? 'Gerando PDF...' : 'Finalizar e Gerar PDF'),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE30613), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
           ),
         ],
