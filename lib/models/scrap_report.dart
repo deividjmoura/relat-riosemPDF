@@ -15,7 +15,6 @@ class ScrapItem {
     this.motivo = '',
   }) : id = id ?? const Uuid().v4();
 
-  /// Exibe o peso em kg usando duas casas decimais, quando necessário.
   String get pesoKgFormatado => (pesoGramas / 1000).toStringAsFixed(2);
 
   Map<String, dynamic> toMap() => {
@@ -29,21 +28,16 @@ class ScrapItem {
   factory ScrapItem.fromMap(Map<String, dynamic> map) {
     final rawPeso = map['pesoGramas'];
     int peso;
-
     if (rawPeso is num) {
       peso = rawPeso.round();
     } else {
       peso = int.tryParse('$rawPeso') ?? 0;
     }
 
-    // Compatibilidade com registros antigos que usavam o campo "total".
+    // Compatibilidade com registros antigos que usavam "total" em kg.
     if (peso == 0 && map['total'] != null) {
-      final legacy = double.tryParse(
-        '${map['total']}'.replaceAll(',', '.'),
-      );
-      if (legacy != null) {
-        peso = (legacy * 1000).round();
-      }
+      final legacy = double.tryParse('${map['total']}'.replaceAll(',', '.'));
+      if (legacy != null) peso = (legacy * 1000).round();
     }
 
     return ScrapItem(
@@ -86,6 +80,44 @@ class ScrapReport {
         terminais = terminais ?? [],
         selos = selos ?? [],
         cabos = cabos ?? [];
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'maquina': maquina,
+        'centro': centro,
+        'turno': turno,
+        'data': data,
+        'matricula': matricula,
+        'operador': operador,
+        'nomeLider': nomeLider,
+        'terminais': terminais.map((e) => e.toMap()).toList(),
+        'selos': selos.map((e) => e.toMap()).toList(),
+        'cabos': cabos.map((e) => e.toMap()).toList(),
+      };
+
+  factory ScrapReport.fromMap(Map<String, dynamic> map) {
+    List<ScrapItem> readItems(dynamic value) {
+      if (value is! List) return [];
+      return value
+          .whereType<Map>()
+          .map((item) => ScrapItem.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    }
+
+    return ScrapReport(
+      id: map['id']?.toString(),
+      maquina: map['maquina']?.toString() ?? '',
+      centro: map['centro']?.toString() ?? 'Corte',
+      turno: map['turno']?.toString() ?? '',
+      data: map['data']?.toString() ?? '',
+      matricula: map['matricula']?.toString() ?? '',
+      operador: map['operador']?.toString() ?? '',
+      nomeLider: map['nomeLider']?.toString() ?? '',
+      terminais: readItems(map['terminais']),
+      selos: readItems(map['selos']),
+      cabos: readItems(map['cabos']),
+    );
+  }
 }
 
 /// Lista oficial de motivos de scrap (códigos)
