@@ -6,6 +6,7 @@ import '../../services/timer_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/input_helpers.dart';
 import 'rdp_setup_dialog.dart';
+import '../../widgets/section_header.dart';
 import '../history_screen.dart';
 import 'rdp_timers_screen.dart';
 
@@ -261,6 +262,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const SectionHeader(icon: Icons.badge, title: 'Cabeçalho do turno'),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -365,8 +367,7 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Linhas de Setup (${report.linhas.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
+          SectionHeader(icon: Icons.list_alt, title: 'Setups (${report.linhas.length})'),
           const Text('Toque em um setup para editar (hora de término, qtd, etc.)', style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 8),
           ...report.linhas.map((linha) {

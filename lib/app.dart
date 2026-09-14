@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
+import 'utils/app_theme.dart';
 
 class RelatoriosApp extends StatelessWidget {
   const RelatoriosApp({super.key});
@@ -9,17 +10,7 @@ class RelatoriosApp extends StatelessWidget {
     return MaterialApp(
       title: 'Relatórios Lear',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE30613), // Vermelho Lear
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-      ),
+      theme: AppTheme.light(),
       home: const HomeScreen(),
     );
   }

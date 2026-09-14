@@ -6,6 +6,7 @@ import '../../services/pdf_service.dart';
 import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
 import '../history_screen.dart';
+import '../../widgets/section_header.dart';
 
 class ScrapFormScreen extends StatefulWidget {
   const ScrapFormScreen({super.key});
@@ -461,6 +462,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const SectionHeader(icon: Icons.badge, title: 'Cabeçalho do turno'),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -526,7 +528,8 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          const SectionHeader(icon: Icons.inventory_2, title: 'Itens de scrap'),
           _buildSection('TERMINAL', report.terminais),
           _buildSection('SELO', report.selos),
           _buildSection('CABO', report.cabos),
