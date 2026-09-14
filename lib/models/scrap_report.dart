@@ -2,26 +2,58 @@ import 'package:uuid/uuid.dart';
 
 class ScrapItem {
   final String id;
-  String terminal; // ou código do item (ex: E14152900)
-  String quantidade;
-  String total;
+  String terminal; // código do item (ex: E14152900)
+  String quantidade; // quantidade de peças/unidades descartadas
+  int pesoGramas; // peso real do scrap; unidade interna: gramas
   String motivo; // código (1410, 711, etc.)
 
   ScrapItem({
     String? id,
     this.terminal = '',
     this.quantidade = '',
-    this.total = '',
+    this.pesoGramas = 0,
     this.motivo = '',
   }) : id = id ?? const Uuid().v4();
+
+  /// Exibe o peso em kg usando duas casas decimais, quando necessário.
+  String get pesoKgFormatado => (pesoGramas / 1000).toStringAsFixed(2);
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'terminal': terminal,
         'quantidade': quantidade,
-        'total': total,
+        'pesoGramas': pesoGramas,
         'motivo': motivo,
       };
+
+  factory ScrapItem.fromMap(Map<String, dynamic> map) {
+    final rawPeso = map['pesoGramas'];
+    int peso;
+
+    if (rawPeso is num) {
+      peso = rawPeso.round();
+    } else {
+      peso = int.tryParse('$rawPeso') ?? 0;
+    }
+
+    // Compatibilidade com registros antigos que usavam o campo "total".
+    if (peso == 0 && map['total'] != null) {
+      final legacy = double.tryParse(
+        '${map['total']}'.replaceAll(',', '.'),
+      );
+      if (legacy != null) {
+        peso = (legacy * 1000).round();
+      }
+    }
+
+    return ScrapItem(
+      id: map['id']?.toString(),
+      terminal: map['terminal']?.toString() ?? '',
+      quantidade: map['quantidade']?.toString() ?? '',
+      pesoGramas: peso,
+      motivo: map['motivo']?.toString() ?? '',
+    );
+  }
 }
 
 class ScrapReport {
