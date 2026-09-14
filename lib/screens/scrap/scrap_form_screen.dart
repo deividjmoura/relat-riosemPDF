@@ -51,7 +51,6 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     if (code != null && code.isNotEmpty) {
       final item = ScrapItem(terminal: code);
       setState(() => targetList.add(item));
-      // Abre edição logo após o scan para preencher qtd/motivo
       await _editItem(item);
     }
   }
@@ -64,7 +63,7 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
         title: const Text('Adicionar item'),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(labelText: 'Código / Terminal'),
+          decoration: const InputDecoration(labelText: 'Código / Item'),
           autofocus: true,
           textCapitalization: TextCapitalization.characters,
           inputFormatters: [UpperCaseTextFormatter()],
@@ -91,7 +90,9 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
 
   Future<void> _editItem(ScrapItem item) async {
     final qtdCtrl = TextEditingController(text: item.quantidade);
-    final totalCtrl = TextEditingController(text: item.total);
+    final pesoCtrl = TextEditingController(
+      text: item.pesoGramas > 0 ? '${item.pesoGramas}' : '',
+    );
     String selectedMotivo = item.motivo;
 
     final ok = await showDialog<bool>(
@@ -106,13 +107,33 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                 children: [
                   TextField(
                     controller: qtdCtrl,
-                    decoration: const InputDecoration(labelText: 'Quantidade'),
+                    decoration: const InputDecoration(
+                      labelText: 'Quantidade',
+                      hintText: 'Ex.: 10 peças',
+                    ),
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
+                  const SizedBox(height: 8),
                   TextField(
-                    controller: totalCtrl,
-                    decoration: const InputDecoration(labelText: 'Total'),
+                    controller: pesoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Peso do scrap (gramas)',
+                      hintText: 'Ex.: 300 g',
+                      suffixText: 'g',
+                    ),
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      pesoCtrl.text.isEmpty
+                          ? 'Será armazenado em gramas.'
+                          : 'Equivale a ${(int.tryParse(pesoCtrl.text) ?? 0) / 1000.0} kg',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   const Align(
@@ -158,10 +179,13 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     if (ok == true) {
       setState(() {
         item.quantidade = qtdCtrl.text.trim();
-        item.total = totalCtrl.text.trim();
+        item.pesoGramas = int.tryParse(pesoCtrl.text.trim()) ?? 0;
         item.motivo = selectedMotivo;
       });
     }
+
+    qtdCtrl.dispose();
+    pesoCtrl.dispose();
   }
 
   Future<void> _gerarPdf() async {
@@ -217,9 +241,11 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(item.terminal, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Qtd: ${item.quantidade.isEmpty ? "–" : item.quantidade}  |  '
-                      'Total: ${item.total.isEmpty ? "–" : item.total}\n'
-                      'Motivo: $motivoLabel'),
+                  subtitle: Text(
+                    'Qtd: ${item.quantidade.isEmpty ? "–" : item.quantidade}  |  '
+                    'Peso: ${item.pesoGramas} g (${item.pesoKgFormatado} kg)\n'
+                    'Motivo: $motivoLabel',
+                  ),
                   isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
