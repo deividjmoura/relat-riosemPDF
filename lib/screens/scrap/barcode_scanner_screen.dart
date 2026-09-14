@@ -12,27 +12,14 @@ class BarcodeScannerScreen extends StatefulWidget {
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   late final MobileScannerController controller;
   bool _scanned = false;
-  bool _starting = true;
 
   @override
   void initState() {
     super.initState();
-    controller = MobileScannerController(autoStart: false);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
-  }
-
-  Future<void> _startCamera() async {
-    if (!mounted) return;
-
-    setState(() => _starting = true);
-    try {
-      await controller.start();
-    } catch (error, stackTrace) {
-      debugPrint('Erro ao iniciar câmera do scanner: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    } finally {
-      if (mounted) setState(() => _starting = false);
-    }
+    // Deixa o próprio MobileScanner controlar o ciclo de inicialização da câmera.
+    // Isso evita a condição de corrida que ocorria ao criar o controller com
+    // autoStart=false e chamar start() imediatamente após o primeiro frame.
+    controller = MobileScannerController();
   }
 
   @override
@@ -95,7 +82,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton.icon(
-                        onPressed: _startCamera,
+                        onPressed: () async {
+                          try {
+                            await controller.start();
+                          } catch (e, stackTrace) {
+                            debugPrint('Erro ao reiniciar câmera: $e');
+                            debugPrintStack(stackTrace: stackTrace);
+                          }
+                        },
                         icon: const Icon(Icons.refresh),
                         label: const Text('Tentar novamente'),
                       ),
@@ -105,10 +99,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               );
             },
           ),
-          if (_starting)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
           IgnorePointer(
             child: Center(
               child: Container(
