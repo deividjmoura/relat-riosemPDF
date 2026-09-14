@@ -23,7 +23,7 @@ dependencies:
   printing: ^5.13.3
 
   # Código de barras / câmera
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^6.0.11
 
   # UI
   cupertino_icons: ^1.0.8
