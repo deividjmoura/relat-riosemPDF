@@ -55,6 +55,29 @@ class RdpLine {
       'scrap': scrap,
     };
   }
+
+  factory RdpLine.fromMap(Map<String, dynamic> map) {
+    Map<String, int> intMap(dynamic value) {
+      if (value is! Map) return {};
+      return value.map(
+        (key, value) => MapEntry(key.toString(), value is num ? value.toInt() : int.tryParse('$value') ?? 0),
+      );
+    }
+
+    return RdpLine(
+      id: map['id']?.toString(),
+      inicioAtiv: map['inicioAtiv']?.toString() ?? '',
+      terminoAtiv: map['terminoAtiv']?.toString() ?? '',
+      pnPeca: map['pnPeca']?.toString() ?? '',
+      taxaPlanejada: map['taxaPlanejada']?.toString() ?? '',
+      taxaReal: map['taxaReal']?.toString() ?? '',
+      quantidadePecas: map['quantidadePecas']?.toString() ?? '',
+      tempoMorto: intMap(map['tempoMorto']),
+      tempoPerdido: intMap(map['tempoPerdido']),
+      paradasProgramadas: intMap(map['paradasProgramadas']),
+      scrap: intMap(map['scrap']),
+    );
+  }
 }
 
 /// Cabeçalho do RDP
@@ -103,6 +126,50 @@ class RdpReport {
         totaisTempoPerdido = totaisTempoPerdido ?? {},
         totaisParadas = totaisParadas ?? {},
         totaisScrap = totaisScrap ?? {};
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'data': data,
+      'maquina': maquina,
+      'operador': operador,
+      'reg': reg,
+      'turno': turno,
+      'horaInicial': horaInicial,
+      'horaFinal': horaFinal,
+      'horimetroInicial': horimetroInicial,
+      'horimetroFinal': horimetroFinal,
+      'horimetroTotal': horimetroTotal,
+      'linhas': linhas.map((linha) => linha.toMap()).toList(),
+      'observacoes': observacoes,
+    };
+  }
+
+  factory RdpReport.fromMap(Map<String, dynamic> map) {
+    final rawLines = map['linhas'];
+    final lines = rawLines is List
+        ? rawLines
+            .whereType<Map>()
+            .map((line) => RdpLine.fromMap(Map<String, dynamic>.from(line)))
+            .toList()
+        : <RdpLine>[];
+
+    return RdpReport(
+      id: map['id']?.toString(),
+      data: map['data']?.toString() ?? '',
+      maquina: map['maquina']?.toString() ?? '',
+      operador: map['operador']?.toString() ?? '',
+      reg: map['reg']?.toString() ?? '',
+      turno: map['turno']?.toString() ?? '',
+      horaInicial: map['horaInicial']?.toString() ?? '',
+      horaFinal: map['horaFinal']?.toString() ?? '',
+      horimetroInicial: map['horimetroInicial']?.toString() ?? '',
+      horimetroFinal: map['horimetroFinal']?.toString() ?? '',
+      horimetroTotal: map['horimetroTotal']?.toString() ?? '',
+      linhas: lines,
+      observacoes: map['observacoes']?.toString() ?? '',
+    );
+  }
 
   void calcularTotais() {
     totaisTempoMorto.clear();
