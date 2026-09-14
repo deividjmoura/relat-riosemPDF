@@ -7,6 +7,7 @@ import '../../utils/input_helpers.dart';
 import 'barcode_scanner_screen.dart';
 import '../history_screen.dart';
 import '../../widgets/app_drawer.dart';
+import '../../utils/expansion_memory.dart';
 
 class ScrapFormScreen extends StatefulWidget {
   const ScrapFormScreen({super.key});
@@ -326,6 +327,54 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     pesoCtrl.dispose();
   }
 
+  /// Limpa todos os dados do dia após confirmação.
+  Future<void> _clearAll() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limpar tudo?'),
+        content: const Text(
+          'Apaga cabeçalho, itens e rascunho para começar um novo dia.\n\nO histórico de PDFs é mantido.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Limpar tudo', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    await _database.deleteScrapDraft(report.id);
+    ExpansionMemory.resetScrap();
+    setState(() {
+      report
+        ..data = DateTime.now().toString().substring(0, 10)
+        ..maquina = ''
+        ..operador = ''
+        ..nomeLider = ''
+        ..matricula = ''
+        ..turno = ''
+        ..terminais.clear()
+        ..selos.clear()
+        ..cabos.clear();
+      _dataCtrl.text = report.data;
+      _maquinaCtrl.clear();
+      _operadorCtrl.clear();
+      _liderCtrl.clear();
+      _matriculaCtrl.clear();
+      _turnoCtrl.clear();
+    });
+    await _saveDraft();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dados do dia apagados. Bom trabalho!')),
+      );
+    }
+  }
+
   Future<void> _gerarPdf() async {
     if (_gerandoPdf) return;
     setState(() => _gerandoPdf = true);
@@ -377,7 +426,8 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
-        initiallyExpanded: true,
+        initiallyExpanded: ExpansionMemory.scrapSection(title),
+        onExpansionChanged: (v) => ExpansionMemory.setScrapSection(title, v),
         title: Row(
           children: [
             Expanded(
@@ -459,6 +509,11 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.delete_forever),
+            onPressed: _clearAll,
+            tooltip: 'Limpar tudo (novo dia)',
+          ),
+          IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: _gerarPdf,
             tooltip: 'Gerar PDF',
@@ -470,7 +525,8 @@ class _ScrapFormScreenState extends State<ScrapFormScreen> {
         children: [
           Card(
             child: ExpansionTile(
-              initiallyExpanded: true,
+              initiallyExpanded: ExpansionMemory.scrapHeader,
+              onExpansionChanged: (v) => ExpansionMemory.scrapHeader = v,
               leading: const Icon(Icons.badge),
               title: const Text('Cabeçalho do turno',
                   style: TextStyle(fontWeight: FontWeight.bold)),

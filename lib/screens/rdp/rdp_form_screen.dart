@@ -7,6 +7,7 @@ import '../../utils/constants.dart';
 import '../../utils/input_helpers.dart';
 import 'rdp_setup_dialog.dart';
 import '../../widgets/app_drawer.dart';
+import '../../utils/expansion_memory.dart';
 import '../history_screen.dart';
 import 'rdp_timers_screen.dart';
 
@@ -181,6 +182,66 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
     ).then((_) => setState(() {}));
   }
 
+  /// Limpa todos os dados do dia (cabeçalho, setups, cronômetros) após confirmação.
+  Future<void> _clearAll() async {
+    final running = _timerService.runningCount;
+    final pendingCount = _timerService.pending.length;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limpar tudo?'),
+        content: Text(
+          'Apaga cabeçalho, setups e rascunho para começar um novo dia.'
+          '${(running > 0 || pendingCount > 0) ? '\n\nAtenção: há $running cronômetro(s) ativo(s) e $pendingCount pendente(s) — serão descartados.' : ''}'
+          '\n\nO histórico de PDFs é mantido.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Limpar tudo', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    _timerService.stopAll();
+    _timerService.clearPending();
+    await _database.deleteRdpDraft(report.id);
+    ExpansionMemory.resetRdp();
+    setState(() {
+      report
+        ..data = DateTime.now().toString().substring(0, 10)
+        ..maquina = ''
+        ..operador = ''
+        ..reg = ''
+        ..turno = ''
+        ..horaInicial = ''
+        ..horaFinal = ''
+        ..observacoes = ''
+        ..linhas.clear()
+        ..totaisTempoMorto.clear()
+        ..totaisTempoPerdido.clear()
+        ..totaisParadas.clear()
+        ..totaisScrap.clear();
+      _dataCtrl.text = report.data;
+      _maquinaCtrl.clear();
+      _operadorCtrl.clear();
+      _regCtrl.clear();
+      _turnoCtrl.clear();
+      _horaInicialCtrl.clear();
+      _horaFinalCtrl.clear();
+      _observacoesCtrl.clear();
+    });
+    await _saveDraft();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dados do dia apagados. Bom trabalho!')),
+      );
+    }
+  }
+
   Future<void> _gerarPdf() async {
     if (_gerandoPdf) return;
 
@@ -257,6 +318,11 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
               ),
             ),
           IconButton(
+            icon: const Icon(Icons.delete_forever),
+            onPressed: _clearAll,
+            tooltip: 'Limpar tudo (novo dia)',
+          ),
+          IconButton(
             icon: _gerandoPdf
                 ? const SizedBox(
                     width: 22,
@@ -274,7 +340,8 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
         children: [
           Card(
             child: ExpansionTile(
-              initiallyExpanded: true,
+              initiallyExpanded: ExpansionMemory.rdpHeader,
+              onExpansionChanged: (v) => ExpansionMemory.rdpHeader = v,
               leading: const Icon(Icons.badge),
               title: const Text('Cabeçalho do turno',
                   style: TextStyle(fontWeight: FontWeight.bold)),
@@ -387,7 +454,8 @@ class _RdpFormScreenState extends State<RdpFormScreen> {
           const SizedBox(height: 16),
           Card(
             child: ExpansionTile(
-              initiallyExpanded: true,
+              initiallyExpanded: ExpansionMemory.rdpSetups,
+              onExpansionChanged: (v) => ExpansionMemory.rdpSetups = v,
               leading: const Icon(Icons.list_alt),
               title: Text('Setups (${report.linhas.length})',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
