@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import '../utils/constants.dart';
 
 /// Representa uma linha de setup + produção do RDP
 class RdpLine {
@@ -57,11 +58,15 @@ class RdpLine {
   }
 
   factory RdpLine.fromMap(Map<String, dynamic> map) {
-    Map<String, int> intMap(dynamic value) {
+    Map<String, int> intMap(dynamic value, String Function(String) normalize) {
       if (value is! Map) return {};
-      return value.map(
-        (key, value) => MapEntry(key.toString(), value is num ? value.toInt() : int.tryParse('$value') ?? 0),
-      );
+      final result = <String, int>{};
+      value.forEach((key, val) {
+        final norm = normalize(key.toString());
+        final v = val is num ? val.toInt() : int.tryParse('$val') ?? 0;
+        result[norm] = (result[norm] ?? 0) + v;
+      });
+      return result;
     }
 
     return RdpLine(
@@ -72,11 +77,25 @@ class RdpLine {
       taxaPlanejada: map['taxaPlanejada']?.toString() ?? '',
       taxaReal: map['taxaReal']?.toString() ?? '',
       quantidadePecas: map['quantidadePecas']?.toString() ?? '',
-      tempoMorto: intMap(map['tempoMorto']),
-      tempoPerdido: intMap(map['tempoPerdido']),
-      paradasProgramadas: intMap(map['paradasProgramadas']),
-      scrap: intMap(map['scrap']),
+      tempoMorto: intMap(map['tempoMorto'], RdpLabelAliases.normalizeMinuteKey),
+      tempoPerdido:
+          intMap(map['tempoPerdido'], RdpLabelAliases.normalizeMinuteKey),
+      paradasProgramadas:
+          intMap(map['paradasProgramadas'], RdpLabelAliases.normalizeMinuteKey),
+      scrap: intMap(map['scrap'], RdpLabelAliases.normalizeScrapKey),
     );
+  }
+
+  /// Divide o PN em 2 partes para as 2 sub-colunas do papel ("G15 3340").
+  List<String> get pnPartes {
+    final parts = pnPeca
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return const ['', ''];
+    if (parts.length == 1) return [parts.first, ''];
+    return [parts.first, parts.sublist(1).join(' ')];
   }
 }
 

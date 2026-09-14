@@ -86,7 +86,10 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
           children: [
             TextField(
               controller: _pnCtrl,
-              decoration: const InputDecoration(labelText: 'PN da Peça *'),
+              decoration: const InputDecoration(
+                labelText: 'PN da Peça *',
+                hintText: 'Ex: G15 3340 (2 colunas no papel)',
+              ),
               autofocus: !isEditing,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [UpperCaseTextFormatter()],
@@ -119,13 +122,13 @@ class _RdpSetupDialogState extends State<RdpSetupDialog> {
             ),
             TextField(
               controller: _taxaPlanCtrl,
-              decoration: const InputDecoration(labelText: 'Taxa Planejada'),
+              decoration: const InputDecoration(labelText: 'Rate Planejada'),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             TextField(
               controller: _taxaRealCtrl,
-              decoration: const InputDecoration(labelText: 'Taxa Real'),
+              decoration: const InputDecoration(labelText: 'Rate Real'),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),

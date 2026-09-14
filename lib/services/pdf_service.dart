@@ -5,36 +5,95 @@ import 'package:printing/printing.dart';
 import '../models/rdp_report.dart';
 import '../models/scrap_report.dart';
 import '../utils/constants.dart';
-import '../utils/lear_logo.dart';
 
 class PdfService {
-  static final _border = PdfColor.fromHex('#333333');
+  static final _border = PdfColors.black;
   static final _headerBg = PdfColor.fromHex('#E8E8E8');
   static final _learRed = PdfColor.fromHex('#E30613');
   static final _totalBg = PdfColor.fromHex('#F5F5F5');
   static final _grayCell = PdfColor.fromHex('#D0D0D0');
+  static final _ppHeaderBg = PdfColor.fromHex('#D9D9D9');
 
   // ===========================================================================
-  // RDP
+  // RDP — F QUA-E 054 Rev.04 (réplica fiel do formulário de papel, A4 paisagem)
   // ===========================================================================
+
+  // ---- Larguras: somam EXATAMENTE a largura imprimível (A4 paisagem - margens).
+  static const double _margin = 12.0;
+  // Bloco esquerdo (8 colunas).
+  static const double _wSq = 22;
+  static const double _wIni = 46;
+  static const double _wTer = 46;
+  static const double _wPn1 = 36;
+  static const double _wPn2 = 48;
+  static const double _wRateP = 41;
+  static const double _wRateR = 41;
+  static const double _leftFixed = 280; // soma das 7 acima
+  // Bloco direito: 26 colunas estreitas + 5 de scrap + visto.
+  static const double _wNarrow = 14;
+  static const double _narrowTotal = 364; // 26 x 14
+  static const double _wS1 = 19;
+  static const double _wS2 = 19;
+  static const double _wS3 = 19;
+  static const double _wS4 = 19;
+  static const double _wST = 22;
+  static const double _scrapTotal = 98;
+  static const double _wVisto = 28;
+  static const double _rightTotal = 490; // 364 + 98 + 28
+  static const double _fixedSum = 770; // 280 + 490
+
+  static double get _usableW =>
+      PdfPageFormat.a4.landscape.width - _margin * 2;
+  // A coluna QUANTIDADE absorve a sobra para fechar a largura exata.
+  static double get _wQtd => _usableW - _fixedSum; // ~47.89
+  static double get _leftTotal => _leftFixed + _wQtd;
+
+  // ---- Alturas (total ~559.5pt de ~571pt úteis).
+  static const double _hTitle = 28;
+  static const double _hB = 34; // linha MAQ / topo do logo
+  static const double _hC = 22; // linha dos grupos
+  static const double _hD = 110; // rótulos verticais
+  static const double _hE = 26; // setas + cabeçalhos esquerdos
+  static const double _hRightMid = 158; // C + D + E
+  static const double _hData = 16.5;
+  static const double _hTotal = 18;
+  static const int _maxRows = 15;
+  static const double _hFootBand = 14; // x4 = 56
+  static const double _gap = 3;
+
   static Future<void> generateRdpPdf(RdpReport report) async {
     final pdf = pw.Document();
     report.calcularTotais();
-    final logo = pw.MemoryImage(learLogoBytes);
+    if (report.horimetroTotal.isEmpty) {
+      final hi = int.tryParse(report.horimetroInicial);
+      final hf = int.tryParse(report.horimetroFinal);
+      if (hi != null && hf != null && hf >= hi) {
+        report.horimetroTotal = '${hf - hi}';
+      }
+    }
+    final dataFmt = _fmtData(report.data);
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.fromLTRB(12, 10, 12, 10),
+        margin: const pw.EdgeInsets.all(_margin),
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              _buildRdpHeader(report, logo),
-              pw.SizedBox(height: 4),
-              _buildRdpMainTable(report),
-              pw.SizedBox(height: 4),
-              _buildRdpFooter(report),
+              _rdpTitleRow(dataFmt),
+              pw.SizedBox(height: _gap),
+              _rdpHeaderBlock(report),
+              pw.SizedBox(height: _gap),
+              _rdpDataTable(report),
+              _rdpTotalRow(report),
+              pw.SizedBox(height: _gap),
+              _rdpFooter(report),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'F QUA-E 054 - Relatório de Produção do Corte - 16-06-26',
+                style: const pw.TextStyle(fontSize: 5),
+              ),
             ],
           );
         },
@@ -43,386 +102,766 @@ class PdfService {
 
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(),
-      name: 'RDP_${report.maquina}_${report.data}.pdf',
+      name: _safeFileName(
+          'RDP_${report.maquina}_${dataFmt.replaceAll('/', '-')}'),
     );
   }
 
-  static pw.Widget _buildRdpHeader(RdpReport report, pw.ImageProvider logo) {
-    return pw.Column(
-      children: [
-        pw.Container(
-          height: 58,
-          decoration: pw.BoxDecoration(border: pw.Border.all(color: _border, width: 0.8)),
-          child: pw.Row(
-            children: [
-              pw.Expanded(
-                flex: 7,
-                child: pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
-                    children: [
-                      pw.Image(logo, width: 150, height: 48, fit: pw.BoxFit.contain),
-                      pw.SizedBox(width: 22),
-                      pw.Expanded(
-                        child: pw.Center(
-                          child: pw.Text(
-                            'RDP - Relatório de Produção do Corte',
-                            textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+  static String _safeFileName(String name) {
+    final clean = name.replaceAll(RegExp(r'[^\w\-.]+'), '_').trim();
+    final trimmed = clean.isEmpty ? 'relatorio' : clean;
+    return '$trimmed.pdf';
+  }
+
+  /// Converte a data para o formato do papel: DD/MM/AA.
+  static String _fmtData(String data) {
+    final d = data.trim();
+    final m1 = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(d);
+    if (m1 != null) {
+      return '${m1.group(3)}/${m1.group(2)}/${m1.group(1)!.substring(2)}';
+    }
+    final m2 = RegExp(r'^(\d{2})/(\d{2})/(\d{4})').firstMatch(d);
+    if (m2 != null) {
+      return '${m2.group(1)}/${m2.group(2)}/${m2.group(3)!.substring(2)}';
+    }
+    return d;
+  }
+
+  // ---- Linha do título ------------------------------------------------------
+  static pw.Widget _rdpTitleRow(String dataFmt) {
+    return pw.Container(
+      height: _hTitle,
+      decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _border, width: 0.8)),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            child: pw.Container(
+              height: _hTitle,
+              alignment: pw.Alignment.center,
+              decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                      right: pw.BorderSide(color: _border, width: 0.4))),
+              child: pw.Text(
+                'RDP - Relatório de Produção do Corte',
+                style: pw.TextStyle(
+                    fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
-              pw.Container(
-                width: 90,
-                height: 58,
-                padding: const pw.EdgeInsets.all(3),
-                decoration: pw.BoxDecoration(
-                    border: pw.Border(left: pw.BorderSide(color: _border, width: 0.6))),
-                child: pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                  children: [
-                    pw.Text('DATA', style: const pw.TextStyle(fontSize: 6)),
-                    pw.SizedBox(height: 3),
-                    pw.Text(report.data,
-                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ),
-              pw.Container(
-                width: 70,
-                height: 58,
-                padding: const pw.EdgeInsets.all(3),
-                decoration: pw.BoxDecoration(
-                    border: pw.Border(left: pw.BorderSide(color: _border, width: 0.6))),
-                child: pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                  children: [
-                    pw.Text('F QUA-E 054', style: const pw.TextStyle(fontSize: 6)),
-                    pw.Text('Rev. 04', style: const pw.TextStyle(fontSize: 6)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        pw.Container(
-          decoration: pw.BoxDecoration(
-            border: pw.Border(
-              left: pw.BorderSide(color: _border, width: 0.8),
-              right: pw.BorderSide(color: _border, width: 0.8),
-              bottom: pw.BorderSide(color: _border, width: 0.8),
             ),
           ),
-          child: pw.Row(children: [
-            _headerField('MAQ', report.maquina, flex: 2),
-            _headerField('OPERADOR', report.operador, flex: 4),
-            _headerField('REG', report.reg, flex: 3),
-            _headerField('Turno', report.turno, flex: 2),
-            _headerField(
-                'Horímetro Inicial', '${report.horaInicial}  ${report.horimetroInicial}', flex: 3),
-            _headerField(
-                'Horímetro Final', '${report.horaFinal}  ${report.horimetroFinal}', flex: 3),
-            _headerField('Horímetro Total', report.horimetroTotal, flex: 2),
-          ]),
+          pw.Container(
+            width: 90,
+            height: _hTitle,
+            alignment: pw.Alignment.center,
+            decoration: pw.BoxDecoration(
+                border: pw.Border(
+                    right: pw.BorderSide(color: _border, width: 0.4))),
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text('DATA', style: const pw.TextStyle(fontSize: 6)),
+                pw.Text(dataFmt,
+                    style: pw.TextStyle(
+                        fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+          ),
+          pw.Container(
+            width: 80,
+            height: _hTitle,
+            alignment: pw.Alignment.center,
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text('F QUA-E 054',
+                    style: const pw.TextStyle(fontSize: 6.5)),
+                pw.Text('Rev. 04', style: const pw.TextStyle(fontSize: 6.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Bloco do cabeçalho (logo + MAQ + grupos + rótulos) -------------------
+  static pw.Widget _rdpHeaderBlock(RdpReport report) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _border, width: 0.8)),
+      child: pw.Row(
+        children: [
+          _rdpLeftBlock(),
+          _rdpRightBlock(report),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _rdpLeftBlock() {
+    return pw.Container(
+      width: _leftTotal,
+      child: pw.Column(
+        children: [
+          _rdpLogoBox(),
+          _rdpLeftHeaders(),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _rdpLogoBox() {
+    return pw.Container(
+      width: _leftTotal,
+      height: _hB + _hC + _hD,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          right: pw.BorderSide(color: _border, width: 0.4),
+          bottom: pw.BorderSide(color: _border, width: 0.4),
         ),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        children: [
+          pw.Container(
+            width: 40,
+            height: 40,
+            decoration:
+                pw.BoxDecoration(color: _learRed, shape: pw.BoxShape.circle),
+            alignment: pw.Alignment.center,
+            child: pw.Text('L',
+                style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 24)),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: [
+              pw.Text('LEAR',
+                  style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold, fontSize: 20)),
+              pw.Text('C O R P O R A T I O N',
+                  style: const pw.TextStyle(fontSize: 7.5)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _rdpLeftHeaders() {
+    pw.Widget h(String text, double w, {double fontSize = 5.5}) {
+      return pw.Container(
+        width: w,
+        height: _hE,
+        alignment: pw.Alignment.center,
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _border, width: 0.4)),
+        child: pw.Text(text,
+            style: pw.TextStyle(
+                fontSize: fontSize, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.center,
+            maxLines: 2),
+      );
+    }
+
+    return pw.Row(
+      children: [
+        h('SQ', _wSq, fontSize: 6),
+        h('INÍCIO DA\nATV', _wIni),
+        h('TÉRMINO DA\nATV', _wTer),
+        h('PN DA PEÇA', _wPn1 + _wPn2, fontSize: 7),
+        h('Rate\nplanejada', _wRateP),
+        h('Rate Real', _wRateR),
+        h('QUANTIDADE\nPEÇAS', _wQtd),
       ],
     );
   }
 
-  static pw.Widget _headerField(String label, String value, {int flex = 1}) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+  static pw.Widget _rdpRightBlock(RdpReport report) {
+    return pw.Container(
+      width: _rightTotal,
+      child: pw.Column(
+        children: [
+          _rdpMaqRow(report),
+          pw.Row(
+            children: [
+              _rdpNarrowBlock(),
+              _rdpScrapBlock(),
+              _rdpVistoBlock(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _rdpMaqRow(RdpReport report) {
+    const double labelH = 11;
+    const double valueH = _hB - labelH;
+
+    pw.Widget labelBox(String label) {
+      return pw.Container(
+        height: labelH,
+        alignment: pw.Alignment.center,
         decoration: pw.BoxDecoration(
-            border: pw.Border(right: pw.BorderSide(color: _border, width: 0.4))),
+            border:
+                pw.Border(bottom: pw.BorderSide(color: _border, width: 0.4))),
+        child: pw.Text(label,
+            style: const pw.TextStyle(fontSize: 5.5), maxLines: 1),
+      );
+    }
+
+    pw.Widget cell(String label, String value, double w,
+        {double valueSize = 8.5}) {
+      return pw.Container(
+        width: w,
+        height: _hB,
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _border, width: 0.4)),
         child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text(label, style: const pw.TextStyle(fontSize: 5.5)),
-            pw.Text(value.isEmpty ? ' ' : value,
-                style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            labelBox(label),
+            pw.Container(
+              height: valueH,
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 1),
+              child: pw.Text(value,
+                  style: pw.TextStyle(
+                      fontSize: valueSize, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                  maxLines: 2),
+            ),
           ],
+        ),
+      );
+    }
+
+    pw.Widget turnoCell() {
+      pw.Widget num(String n) {
+        final marked = report.turno.trim() == n;
+        return pw.Container(
+          width: 22,
+          height: valueH,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+              border: pw.Border(
+                  right: pw.BorderSide(color: _border, width: 0.4))),
+          child: pw.Text(marked ? 'X' : n,
+              style: pw.TextStyle(
+                  fontSize: marked ? 11 : 9,
+                  fontWeight: pw.FontWeight.bold)),
+        );
+      }
+
+      final t = report.turno.trim();
+      final custom = t.isNotEmpty && t != '1' && t != '2' && t != '3';
+      return pw.Container(
+        width: 66,
+        height: _hB,
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _border, width: 0.4)),
+        child: pw.Column(
+          children: [
+            labelBox('Turno'),
+            custom
+                ? pw.Container(
+                    height: valueH,
+                    alignment: pw.Alignment.center,
+                    child: pw.Text(t,
+                        style: pw.TextStyle(
+                            fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                        maxLines: 1),
+                  )
+                : pw.Container(
+                    height: valueH,
+                    child: pw.Row(
+                      children: [num('1'), num('2'), num('3')],
+                    ),
+                  ),
+          ],
+        ),
+      );
+    }
+
+    pw.Widget subHorim(String lab, String val, double w) {
+      return pw.Container(
+        width: w,
+        height: valueH,
+        alignment: pw.Alignment.center,
+        decoration: pw.BoxDecoration(
+            border: pw.Border(
+                right: pw.BorderSide(color: _border, width: 0.4))),
+        child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          children: [
+            pw.Text(lab, style: const pw.TextStyle(fontSize: 5.5)),
+            pw.Text(val,
+                style: pw.TextStyle(
+                    fontSize: 8, fontWeight: pw.FontWeight.bold),
+                maxLines: 1),
+          ],
+        ),
+      );
+    }
+
+    pw.Widget horimCell(String label, String hora, String min, double w) {
+      return pw.Container(
+        width: w,
+        height: _hB,
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _border, width: 0.4)),
+        child: pw.Column(
+          children: [
+            labelBox(label),
+            pw.Row(
+              children: [
+                subHorim('hora', hora, w / 2),
+                subHorim('Min', min, w / 2),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    const double wOper = _rightTotal - 44 - 60 - 66 - 78 - 78 - 52; // 112
+    return pw.Row(children: [
+      cell('MAQ', report.maquina, 44),
+      cell('OPERADOR', report.operador, wOper, valueSize: 8),
+      cell('REG', report.reg, 60),
+      turnoCell(),
+      horimCell(
+          'Horímetro Inicial', report.horaInicial, report.horimetroInicial, 78),
+      horimCell(
+          'Horímetro Final', report.horaFinal, report.horimetroFinal, 78),
+      cell('Horímetro Total', report.horimetroTotal, 52, valueSize: 8),
+    ]);
+  }
+
+  static pw.Widget _rdpNarrowBlock() {
+    final groups = RdpPaperLayout.groups.sublist(0, 5);
+    return pw.Container(
+      width: _narrowTotal,
+      child: pw.Column(
+        children: [
+          // Linha C: grupos (TR, TP, TM, TP, PP).
+          pw.Row(
+            children: groups.map((g) {
+              return _groupCell(g.title, g.columns.length * _wNarrow, _hC);
+            }).toList(),
+          ),
+          // Linha D: rótulos verticais.
+          pw.Row(
+            children: RdpPaperLayout.narrowColumns.map((c) {
+              return _vLabel(c.key,
+                  w: _wNarrow,
+                  h: _hD,
+                  fontSize: 4.8,
+                  bg: c.store == 'PP' ? _ppHeaderBg : null);
+            }).toList(),
+          ),
+          // Linha E: setas.
+          pw.Row(
+            children: RdpPaperLayout.narrowColumns
+                .map((c) => _upMark(w: _wNarrow, h: _hE))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _groupCell(String title, double w, double h) {
+    String text = title;
+    double size = 7;
+    if (title == 'Tempo Perdido (TP)') {
+      text = 'Tempo\nPerdido (TP)';
+      size = 6;
+    } else if (title == 'Tempo Morto (TM)') {
+      size = 6.5;
+    } else if (title == 'Paradas Programadas (PP)') {
+      size = 6.5;
+    } else if (title == 'TR' || title == 'TP') {
+      size = 8;
+    }
+    return pw.Container(
+      width: w,
+      height: h,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _border, width: 0.4)),
+      child: pw.Text(text,
+          style:
+              pw.TextStyle(fontSize: size, fontWeight: pw.FontWeight.bold),
+          textAlign: pw.TextAlign.center,
+          maxLines: 2),
+    );
+  }
+
+  /// Rótulo vertical (lê-se de baixo para cima, como no papel).
+  static pw.Widget _vLabel(String text,
+      {required double w,
+      required double h,
+      double fontSize = 5,
+      PdfColor? bg}) {
+    return pw.Container(
+      width: w,
+      height: h,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+          color: bg, border: pw.Border.all(color: _border, width: 0.4)),
+      child: pw.Transform.rotateBox(
+        angle: -math.pi / 2,
+        child: pw.Container(
+          width: h - 4,
+          alignment: pw.Alignment.center,
+          child: pw.Text(text,
+              style: pw.TextStyle(
+                  fontSize: fontSize, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.center,
+              maxLines: 1),
         ),
       ),
     );
   }
 
-  static pw.Widget _buildRdpMainTable(RdpReport report) {
-    final tm = TempoMortoCategories.list;
-    final tp = TempoPerdidoCategories.list;
-    final pp = ParadasProgramadasCategories.list;
-    final scrap = ScrapRdpColumns.list;
+  /// Setinha impressa no papel entre o cabeçalho e os dados.
+  static pw.Widget _upMark({required double w, required double h}) {
+    return pw.Container(
+      width: w,
+      height: h,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _border, width: 0.4)),
+      child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        children: [
+          pw.Transform.rotateBox(
+            angle: math.pi / 4,
+            child: pw.Container(
+              width: 3.4,
+              height: 3.4,
+              decoration: pw.BoxDecoration(color: _border),
+            ),
+          ),
+          pw.Container(
+            width: 1.1,
+            height: 4.5,
+            decoration: pw.BoxDecoration(color: _border),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final dataRows = <pw.TableRow>[];
-    const maxRows = 15;
-    for (var i = 0; i < maxRows; i++) {
-      if (i < report.linhas.length) {
-        dataRows.add(_buildDataRow(i + 1, report.linhas[i], tm, tp, pp, scrap));
-      } else {
-        dataRows.add(_buildEmptyRow(i + 1, tm.length, tp.length, pp.length, scrap.length));
+  static pw.Widget _rdpScrapBlock() {
+    const double hTitle = 11;
+    const double hCod = 11;
+    const double hLab = _hRightMid - hTitle - hCod; // 136
+    final keys = RdpPaperLayout.scrapColumns;
+    final widths = <double>[_wS1, _wS2, _wS3, _wS4, _wST];
+    return pw.Container(
+      width: _scrapTotal,
+      child: pw.Column(
+        children: [
+          pw.Container(
+            width: _scrapTotal,
+            height: hTitle,
+            alignment: pw.Alignment.center,
+            decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: _border, width: 0.4)),
+            child: pw.Text('Scrap',
+                style: pw.TextStyle(
+                    fontSize: 9, fontWeight: pw.FontWeight.bold)),
+          ),
+          pw.Row(children: [
+            pw.Container(
+              width: _wS1 + _wS2 + _wS3 + _wS4,
+              height: hCod,
+              alignment: pw.Alignment.center,
+              decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: _border, width: 0.4)),
+              child: pw.Text('Código da perda',
+                  style: const pw.TextStyle(fontSize: 6.5), maxLines: 1),
+            ),
+            pw.Container(
+              width: _wST,
+              height: hCod,
+              decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: _border, width: 0.4)),
+            ),
+          ]),
+          pw.Row(
+            children: List.generate(keys.length, (i) {
+              return _vLabel(keys[i].key,
+                  w: widths[i], h: hLab, fontSize: 5.5);
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _rdpVistoBlock() {
+    return _vLabel('VISTO', w: _wVisto, h: _hRightMid, fontSize: 11);
+  }
+
+  // ---- Tabela de dados (15 linhas) ------------------------------------------
+  static pw.Widget _rdpDataTable(RdpReport report) {
+    final narrow = RdpPaperLayout.narrowColumns;
+    final scrap = RdpPaperLayout.scrapColumns;
+
+    Map<int, pw.TableColumnWidth> colWidths() {
+      final fixed = <double>[
+        _wSq,
+        _wIni,
+        _wTer,
+        _wPn1,
+        _wPn2,
+        _wRateP,
+        _wRateR,
+        _wQtd,
+        ...List.filled(narrow.length, _wNarrow),
+        _wS1,
+        _wS2,
+        _wS3,
+        _wS4,
+        _wST,
+        _wVisto,
+      ];
+      final map = <int, pw.TableColumnWidth>{};
+      for (var i = 0; i < fixed.length; i++) {
+        map[i] = pw.FixedColumnWidth(fixed[i]);
+      }
+      return map;
+    }
+
+    pw.Widget d(String text, {double fontSize = 7}) {
+      return pw.Container(
+        height: _hData,
+        alignment: pw.Alignment.center,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1),
+        child: pw.Text(text,
+            style: pw.TextStyle(fontSize: fontSize),
+            textAlign: pw.TextAlign.center,
+            maxLines: 1),
+      );
+    }
+
+    int minFor(RdpLine l, RdpPaperColumn c) {
+      switch (c.store) {
+        case 'TM':
+          return l.tempoMorto[c.key] ?? 0;
+        case 'TP':
+          return l.tempoPerdido[c.key] ?? 0;
+        case 'PP':
+          return l.paradasProgramadas[c.key] ?? 0;
+        default:
+          return 0;
       }
     }
-    dataRows.add(_buildTotalRow(report, tm, tp, pp, scrap));
+
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < _maxRows; i++) {
+      final linha = i < report.linhas.length ? report.linhas[i] : null;
+      final cells = <pw.Widget>[];
+      if (linha == null) {
+        cells.add(d('${i + 1}'));
+        for (var k = 0; k < 39; k++) {
+          cells.add(d(''));
+        }
+      } else {
+        final pn = linha.pnPartes;
+        cells.addAll([
+          d('${i + 1}'),
+          d(linha.inicioAtiv),
+          d(linha.terminoAtiv),
+          d(pn[0]),
+          d(pn[1]),
+          d(linha.taxaPlanejada),
+          d(linha.taxaReal),
+          d(linha.quantidadePecas, fontSize: 7.5),
+        ]);
+        for (final c in narrow) {
+          final v = minFor(linha, c);
+          cells.add(d(v > 0 ? '$v'.padLeft(2, '0') : ''));
+        }
+        for (final c in scrap) {
+          final v = linha.scrap[c.key] ?? 0;
+          cells.add(d(v > 0 ? '$v' : ''));
+        }
+        cells.add(d('')); // visto
+      }
+      rows.add(pw.TableRow(children: cells));
+    }
 
     return pw.Table(
-      border: pw.TableBorder.all(color: _border, width: 0.4),
-      columnWidths: _columnWidths(tm.length, tp.length, pp.length, scrap.length),
+      border: pw.TableBorder(
+        left: pw.BorderSide(color: _border, width: 0.8),
+        right: pw.BorderSide(color: _border, width: 0.8),
+        top: pw.BorderSide(color: _border, width: 0.8),
+        bottom: pw.BorderSide(color: _border, width: 0.4),
+        horizontalInside: pw.BorderSide(color: _border, width: 0.4),
+        verticalInside: pw.BorderSide(color: _border, width: 0.4),
+      ),
+      columnWidths: colWidths(),
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-      children: [
-        _buildGroupHeaderRow(),
-        _buildColumnHeaderRow(),
-        ...dataRows,
-      ],
+      children: rows,
     );
   }
 
-  static Map<int, pw.TableColumnWidth> _columnWidths(int tm, int tp, int pp, int scrap) {
-    final map = <int, pw.TableColumnWidth>{
-      0: const pw.FixedColumnWidth(14),
-      1: const pw.FixedColumnWidth(28),
-      2: const pw.FixedColumnWidth(28),
-      3: const pw.FixedColumnWidth(42),
-      4: const pw.FixedColumnWidth(26),
-      5: const pw.FixedColumnWidth(26),
-      6: const pw.FixedColumnWidth(32),
-    };
-    int idx = 7;
-    for (var i = 0; i < tm; i++) map[idx++] = const pw.FixedColumnWidth(16);
-    for (var i = 0; i < tp; i++) map[idx++] = const pw.FixedColumnWidth(16);
-    for (var i = 0; i < pp; i++) map[idx++] = const pw.FixedColumnWidth(16);
-    for (var i = 0; i < scrap; i++) map[idx++] = const pw.FixedColumnWidth(18);
-    map[idx] = const pw.FixedColumnWidth(22);
-    return map;
-  }
+  // ---- Linha de TOTAL (células mescladas como no papel) ---------------------
+  static pw.Widget _rdpTotalRow(RdpReport report) {
+    final narrow = RdpPaperLayout.narrowColumns;
+    final scrap = RdpPaperLayout.scrapColumns;
 
-  static pw.TableRow _buildGroupHeaderRow() {
-    final tmCount = TempoMortoCategories.list.length;
-    final tpCount = TempoPerdidoCategories.list.length;
-    final ppCount = ParadasProgramadasCategories.list.length;
-    final scrapCount = ScrapRdpColumns.list.length;
-    return pw.TableRow(
-      decoration: pw.BoxDecoration(color: _headerBg),
-      children: [
-        for (var i = 0; i < 7; i++) _cell('', bold: true, fontSize: 5),
-        for (var i = 0; i < tmCount; i++)
-          _cell(i == 0 ? 'TM' : '', bold: true, fontSize: 6, bg: _headerBg),
-        for (var i = 0; i < tpCount; i++)
-          _cell(i == 0 ? 'TP' : '', bold: true, fontSize: 6, bg: _headerBg),
-        for (var i = 0; i < ppCount; i++)
-          _cell(i == 0 ? 'PP' : '', bold: true, fontSize: 6, bg: _headerBg),
-        for (var i = 0; i < scrapCount; i++)
-          _cell(i == 0 ? 'Scrap' : '', bold: true, fontSize: 5.5, bg: _headerBg),
-        _cell('VISTO', bold: true, fontSize: 5.5, bg: _headerBg),
-      ],
-    );
-  }
-
-  static pw.TableRow _buildColumnHeaderRow() {
-    final cells = <pw.Widget>[
-      _cell('Seq', bold: true, fontSize: 5, bg: _headerBg),
-      _cell('INÍCIO\nDA ATIV', bold: true, fontSize: 4.5, bg: _headerBg),
-      _cell('TÉRMINO\nDA ATIV', bold: true, fontSize: 4.5, bg: _headerBg),
-      _cell('PN DA PEÇA', bold: true, fontSize: 5, bg: _headerBg),
-      _cell('Taxa\nPlanejada', bold: true, fontSize: 4.5, bg: _headerBg),
-      _cell('Taxa\nReal', bold: true, fontSize: 4.5, bg: _headerBg),
-      _cell('QUANTIDADE\nPEÇAS', bold: true, fontSize: 4.5, bg: _headerBg),
-    ];
-    for (final label in TempoMortoCategories.short) {
-      cells.add(_vCell(label));
-    }
-    for (final label in TempoPerdidoCategories.short) {
-      cells.add(_vCell(label));
-    }
-    for (final label in ParadasProgramadasCategories.short) {
-      cells.add(_vCell(label));
-    }
-    for (final label in ScrapRdpColumns.short) {
-      cells.add(_vCell(label));
-    }
-    cells.add(_cell('VISTO', bold: true, fontSize: 5, bg: _headerBg));
-    return pw.TableRow(decoration: pw.BoxDecoration(color: _headerBg), children: cells);
-  }
-
-  static pw.TableRow _buildDataRow(
-    int seq,
-    RdpLine linha,
-    List<String> tm,
-    List<String> tp,
-    List<String> pp,
-    List<String> scrap,
-  ) {
-    final cells = <pw.Widget>[
-      _cell('$seq', fontSize: 6),
-      _cell(linha.inicioAtiv, fontSize: 6),
-      _cell(linha.terminoAtiv, fontSize: 6),
-      _cell(linha.pnPeca, fontSize: 6),
-      _cell(linha.taxaPlanejada, fontSize: 6),
-      _cell(linha.taxaReal, fontSize: 6),
-      _cell(linha.quantidadePecas, fontSize: 6),
-    ];
-    for (final key in tm) {
-      final v = linha.tempoMorto[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', fontSize: 6));
-    }
-    for (final key in tp) {
-      final v = linha.tempoPerdido[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', fontSize: 6));
-    }
-    for (final key in pp) {
-      final v = linha.paradasProgramadas[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', fontSize: 6));
-    }
-    for (final key in scrap) {
-      final v = linha.scrap[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', fontSize: 6));
-    }
-    cells.add(_cell('', fontSize: 6));
-    return pw.TableRow(children: cells);
-  }
-
-  static pw.TableRow _buildEmptyRow(int seq, int tm, int tp, int pp, int scrap) {
-    final totalCols = 7 + tm + tp + pp + scrap + 1;
-    return pw.TableRow(
-      children: List.generate(totalCols, (i) {
-        if (i == 0) return _cell('$seq', fontSize: 6);
-        return _cell('', fontSize: 6);
-      }),
-    );
-  }
-
-  static pw.TableRow _buildTotalRow(
-    RdpReport report,
-    List<String> tm,
-    List<String> tp,
-    List<String> pp,
-    List<String> scrap,
-  ) {
     int totalQtd = 0;
     for (final l in report.linhas) {
       totalQtd += int.tryParse(l.quantidadePecas) ?? 0;
     }
-    final cells = <pw.Widget>[
-      _cell('', fontSize: 6, bg: _totalBg),
-      _cell('', fontSize: 6, bg: _totalBg),
-      _cell('', fontSize: 6, bg: _totalBg),
-      _cell('TOTAL:', bold: true, fontSize: 6, bg: _totalBg),
-      _cell('', fontSize: 6, bg: _totalBg),
-      _cell('', fontSize: 6, bg: _totalBg),
-      _cell(totalQtd > 0 ? '$totalQtd' : '', bold: true, fontSize: 6, bg: _totalBg),
-    ];
-    for (final key in tm) {
-      final v = report.totaisTempoMorto[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', bold: true, fontSize: 6, bg: _totalBg));
-    }
-    for (final key in tp) {
-      final v = report.totaisTempoPerdido[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', bold: true, fontSize: 6, bg: _totalBg));
-    }
-    for (final key in pp) {
-      final v = report.totaisParadas[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', bold: true, fontSize: 6, bg: _totalBg));
-    }
-    for (final key in scrap) {
-      final v = report.totaisScrap[key];
-      cells.add(_cell(v != null && v > 0 ? '$v' : '', bold: true, fontSize: 6, bg: _totalBg));
-    }
-    cells.add(_cell('', fontSize: 6, bg: _totalBg));
-    return pw.TableRow(children: cells);
-  }
 
-  static pw.Widget _buildRdpFooter(RdpReport report) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all(color: _border, width: 0.6)),
-          padding: const pw.EdgeInsets.all(4),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('OBSERVAÇÕES: ',
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-              pw.Expanded(
-                child: pw.Text(report.observacoes.isEmpty ? ' ' : report.observacoes,
-                    style: const pw.TextStyle(fontSize: 7)),
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 3),
-        pw.Container(
-          decoration: pw.BoxDecoration(border: pw.Border.all(color: _border, width: 0.6)),
-          child: pw.Row(children: [
-            _signBox('REABAST'),
-            _signBox('LOG'),
-            _signBox('MANUT'),
-            _signBox('TI'),
-            _signBox('ENG'),
-            _signBox('QUALI'),
-          ]),
-        ),
-        pw.SizedBox(height: 2),
-        pw.Text('F QUA-E 054 - Relatório de Produção do Corte - 16-06-26',
-            style: const pw.TextStyle(fontSize: 5)),
-      ],
-    );
-  }
+    int totFor(RdpPaperColumn c) {
+      switch (c.store) {
+        case 'TM':
+          return report.totaisTempoMorto[c.key] ?? 0;
+        case 'TP':
+          return report.totaisTempoPerdido[c.key] ?? 0;
+        case 'PP':
+          return report.totaisParadas[c.key] ?? 0;
+        case 'SC':
+          return report.totaisScrap[c.key] ?? 0;
+        default:
+          return 0;
+      }
+    }
 
-  static pw.Widget _signBox(String label) {
-    return pw.Expanded(
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+    pw.Widget t(String text, double w, {double fontSize = 7}) {
+      return pw.Container(
+        width: w,
+        height: _hTotal,
+        alignment: pw.Alignment.center,
         decoration: pw.BoxDecoration(
-            border: pw.Border(right: pw.BorderSide(color: _border, width: 0.4))),
-        child: pw.Column(children: [
-          pw.Text(label, style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 10),
-          pw.Text('_______', style: const pw.TextStyle(fontSize: 7)),
-        ]),
-      ),
-    );
-  }
-
-  static pw.Widget _cell(String text, {bool bold = false, double fontSize = 7, PdfColor? bg}) {
-    return pw.Container(
-      color: bg,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 1, vertical: 1.5),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: fontSize,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-        ),
-        textAlign: pw.TextAlign.center,
-        maxLines: 3,
-      ),
-    );
-  }
-
-  static pw.Widget _vCell(String text, {double height = 55, PdfColor? bg}) {
-    return pw.Container(
-      color: bg ?? _headerBg,
-      height: height,
-      alignment: pw.Alignment.center,
-      child: pw.Transform.rotateBox(
-        angle: -math.pi / 2,
-        child: pw.Container(
-          width: height - 2,
-          alignment: pw.Alignment.center,
-          child: pw.Text(
-            text,
-            style: pw.TextStyle(fontSize: 4.2, fontWeight: pw.FontWeight.bold),
+            border: pw.Border.all(color: _border, width: 0.4)),
+        child: pw.Text(text,
+            style: pw.TextStyle(
+                fontSize: fontSize, fontWeight: pw.FontWeight.bold),
             textAlign: pw.TextAlign.center,
-            maxLines: 4,
-          ),
+            maxLines: 1),
+      );
+    }
+
+    final cells = <pw.Widget>[
+      t('TOTAL:', _wSq + _wIni + _wTer),
+      t(report.linhas.isEmpty ? '' : '${report.linhas.length}'.padLeft(2, '0'),
+          _wPn1 + _wPn2),
+      t('', _wRateP),
+      t('', _wRateR),
+      t(totalQtd > 0 ? '$totalQtd' : '', _wQtd, fontSize: 7.5),
+    ];
+    for (final c in narrow) {
+      final v = totFor(c);
+      cells.add(t(v > 0 ? '$v'.padLeft(2, '0') : '', _wNarrow));
+    }
+    final scrapW = <double>[_wS1, _wS2, _wS3, _wS4, _wST];
+    for (var i = 0; i < scrap.length; i++) {
+      final v = totFor(scrap[i]);
+      cells.add(t(v > 0 ? '$v' : '', scrapW[i]));
+    }
+    cells.add(t('', _wVisto));
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left: pw.BorderSide(color: _border, width: 0.8),
+          right: pw.BorderSide(color: _border, width: 0.8),
+          bottom: pw.BorderSide(color: _border, width: 0.8),
         ),
+      ),
+      child: pw.Row(children: cells),
+    );
+  }
+
+  // ---- Rodapé (observações + grade de áreas) --------------------------------
+  static pw.Widget _rdpFooter(RdpReport report) {
+    final obsW = _usableW * 0.64;
+    final gridW = _usableW - obsW;
+    final colW = gridW / 6;
+    const labels = ['REABAST', 'LOG', 'MANUT', 'TI', 'ENG', 'QUALI'];
+
+    pw.Widget obsBand(String text, {bool isLabel = false}) {
+      return pw.Container(
+        width: obsW,
+        height: _hFootBand,
+        alignment: pw.Alignment.topLeft,
+        padding: const pw.EdgeInsets.only(left: 3, top: 1),
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _border, width: 0.4)),
+        child: pw.Text(text,
+            style: pw.TextStyle(
+                fontSize: isLabel ? 6.5 : 6,
+                fontWeight:
+                    isLabel ? pw.FontWeight.bold : pw.FontWeight.normal),
+            maxLines: 2),
+      );
+    }
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _border, width: 0.8)),
+      child: pw.Row(
+        children: [
+          pw.Container(
+            width: obsW,
+            child: pw.Column(
+              children: [
+                obsBand(
+                    report.observacoes.isEmpty
+                        ? 'OBSERVAÇÕES:'
+                        : 'OBSERVAÇÕES: ${report.observacoes}',
+                    isLabel: true),
+                obsBand(''),
+                obsBand(''),
+                obsBand(''),
+              ],
+            ),
+          ),
+          pw.Container(
+            width: gridW,
+            child: pw.Column(
+              children: [
+                pw.Row(
+                  children: labels.map((lab) {
+                    return pw.Container(
+                      width: colW,
+                      height: _hFootBand * 3,
+                      alignment: pw.Alignment.center,
+                      decoration: pw.BoxDecoration(
+                          border: pw.Border.all(color: _border, width: 0.4)),
+                      child: pw.Text(lab,
+                          style: pw.TextStyle(
+                              fontSize: 6, fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center),
+                    );
+                  }).toList(),
+                ),
+                pw.Row(
+                  children: List.generate(6, (i) {
+                    return pw.Container(
+                      width: colW,
+                      height: _hFootBand,
+                      decoration: pw.BoxDecoration(
+                          border: pw.Border.all(color: _border, width: 0.4)),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -486,7 +925,8 @@ class PdfService {
 
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(),
-      name: 'Scrap_${report.maquina}_${report.data}.pdf',
+      name: _safeFileName(
+          'Scrap_${report.maquina}_${report.data.replaceAll('/', '-')}'),
     );
   }
 
