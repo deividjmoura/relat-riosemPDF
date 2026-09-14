@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -15,6 +17,9 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+
+# VS Code
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -25,7 +30,6 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-/coverage/
 
 # Symbolication related
 app.*.symbols
@@ -38,12 +42,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# iOS
-ios/Pods/
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
+# Generated platform folders can stay in repo after flutter create
+# but ignore local overrides
+**/local.properties
+**/Generated.xcconfig
+**/flutter_export_environment.sh
 
-# Generated
-*.g.dart
-*.freezed.dart
+# Exceptions to above rules
+!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
